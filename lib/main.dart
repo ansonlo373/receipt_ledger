@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:receipt_ledger/data/receipt_repository.dart';
 import 'package:receipt_ledger/data/receipts_database.dart';
@@ -9,12 +11,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final themeController = ThemeController();
   await themeController.load();
-  runApp(
-    MyApp(
-      repository: DriftReceiptRepository(ReceiptsDatabase()),
-      themeController: themeController,
-    ),
-  );
+  final repository = DriftReceiptRepository(ReceiptsDatabase());
+  unawaited(repository.purgeExpiredTrash());
+  runApp(MyApp(repository: repository, themeController: themeController));
 }
 
 class MyApp extends StatelessWidget {

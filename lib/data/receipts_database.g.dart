@@ -72,6 +72,17 @@ class $ReceiptsTable extends Receipts with TableInfo<$ReceiptsTable, Receipt> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -80,6 +91,7 @@ class $ReceiptsTable extends Receipts with TableInfo<$ReceiptsTable, Receipt> {
     date,
     category,
     notes,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -134,6 +146,12 @@ class $ReceiptsTable extends Receipts with TableInfo<$ReceiptsTable, Receipt> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -167,6 +185,10 @@ class $ReceiptsTable extends Receipts with TableInfo<$ReceiptsTable, Receipt> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -183,6 +205,7 @@ class Receipt extends DataClass implements Insertable<Receipt> {
   final DateTime date;
   final String category;
   final String? notes;
+  final DateTime? deletedAt;
   const Receipt({
     required this.id,
     required this.merchant,
@@ -190,6 +213,7 @@ class Receipt extends DataClass implements Insertable<Receipt> {
     required this.date,
     required this.category,
     this.notes,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -201,6 +225,9 @@ class Receipt extends DataClass implements Insertable<Receipt> {
     map['category'] = Variable<String>(category);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
     return map;
   }
@@ -215,6 +242,9 @@ class Receipt extends DataClass implements Insertable<Receipt> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -230,6 +260,7 @@ class Receipt extends DataClass implements Insertable<Receipt> {
       date: serializer.fromJson<DateTime>(json['date']),
       category: serializer.fromJson<String>(json['category']),
       notes: serializer.fromJson<String?>(json['notes']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -242,6 +273,7 @@ class Receipt extends DataClass implements Insertable<Receipt> {
       'date': serializer.toJson<DateTime>(date),
       'category': serializer.toJson<String>(category),
       'notes': serializer.toJson<String?>(notes),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -252,6 +284,7 @@ class Receipt extends DataClass implements Insertable<Receipt> {
     DateTime? date,
     String? category,
     Value<String?> notes = const Value.absent(),
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => Receipt(
     id: id ?? this.id,
     merchant: merchant ?? this.merchant,
@@ -259,6 +292,7 @@ class Receipt extends DataClass implements Insertable<Receipt> {
     date: date ?? this.date,
     category: category ?? this.category,
     notes: notes.present ? notes.value : this.notes,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   Receipt copyWithCompanion(ReceiptsCompanion data) {
     return Receipt(
@@ -268,6 +302,7 @@ class Receipt extends DataClass implements Insertable<Receipt> {
       date: data.date.present ? data.date.value : this.date,
       category: data.category.present ? data.category.value : this.category,
       notes: data.notes.present ? data.notes.value : this.notes,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -279,14 +314,15 @@ class Receipt extends DataClass implements Insertable<Receipt> {
           ..write('amountYen: $amountYen, ')
           ..write('date: $date, ')
           ..write('category: $category, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode =>
-      Object.hash(id, merchant, amountYen, date, category, notes);
+      Object.hash(id, merchant, amountYen, date, category, notes, deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -296,7 +332,8 @@ class Receipt extends DataClass implements Insertable<Receipt> {
           other.amountYen == this.amountYen &&
           other.date == this.date &&
           other.category == this.category &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.deletedAt == this.deletedAt);
 }
 
 class ReceiptsCompanion extends UpdateCompanion<Receipt> {
@@ -306,6 +343,7 @@ class ReceiptsCompanion extends UpdateCompanion<Receipt> {
   final Value<DateTime> date;
   final Value<String> category;
   final Value<String?> notes;
+  final Value<DateTime?> deletedAt;
   const ReceiptsCompanion({
     this.id = const Value.absent(),
     this.merchant = const Value.absent(),
@@ -313,6 +351,7 @@ class ReceiptsCompanion extends UpdateCompanion<Receipt> {
     this.date = const Value.absent(),
     this.category = const Value.absent(),
     this.notes = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   });
   ReceiptsCompanion.insert({
     this.id = const Value.absent(),
@@ -321,6 +360,7 @@ class ReceiptsCompanion extends UpdateCompanion<Receipt> {
     required DateTime date,
     required String category,
     this.notes = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   }) : merchant = Value(merchant),
        amountYen = Value(amountYen),
        date = Value(date),
@@ -332,6 +372,7 @@ class ReceiptsCompanion extends UpdateCompanion<Receipt> {
     Expression<DateTime>? date,
     Expression<String>? category,
     Expression<String>? notes,
+    Expression<DateTime>? deletedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -340,6 +381,7 @@ class ReceiptsCompanion extends UpdateCompanion<Receipt> {
       if (date != null) 'date': date,
       if (category != null) 'category': category,
       if (notes != null) 'notes': notes,
+      if (deletedAt != null) 'deleted_at': deletedAt,
     });
   }
 
@@ -350,6 +392,7 @@ class ReceiptsCompanion extends UpdateCompanion<Receipt> {
     Value<DateTime>? date,
     Value<String>? category,
     Value<String?>? notes,
+    Value<DateTime?>? deletedAt,
   }) {
     return ReceiptsCompanion(
       id: id ?? this.id,
@@ -358,6 +401,7 @@ class ReceiptsCompanion extends UpdateCompanion<Receipt> {
       date: date ?? this.date,
       category: category ?? this.category,
       notes: notes ?? this.notes,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -382,6 +426,9 @@ class ReceiptsCompanion extends UpdateCompanion<Receipt> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     return map;
   }
 
@@ -393,7 +440,8 @@ class ReceiptsCompanion extends UpdateCompanion<Receipt> {
           ..write('amountYen: $amountYen, ')
           ..write('date: $date, ')
           ..write('category: $category, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -417,6 +465,7 @@ typedef $$ReceiptsTableCreateCompanionBuilder = ReceiptsCompanion Function({
   required DateTime date,
   required String category,
   Value<String?> notes,
+  Value<DateTime?> deletedAt,
 });
 typedef $$ReceiptsTableUpdateCompanionBuilder = ReceiptsCompanion Function({
   Value<int> id,
@@ -425,6 +474,7 @@ typedef $$ReceiptsTableUpdateCompanionBuilder = ReceiptsCompanion Function({
   Value<DateTime> date,
   Value<String> category,
   Value<String?> notes,
+  Value<DateTime?> deletedAt,
 });
 
 class $$ReceiptsTableFilterComposer
@@ -463,6 +513,11 @@ class $$ReceiptsTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -505,6 +560,11 @@ class $$ReceiptsTableOrderingComposer
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ReceiptsTableAnnotationComposer
@@ -533,6 +593,9 @@ class $$ReceiptsTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 }
 
 class $$ReceiptsTableTableManager
@@ -572,6 +635,7 @@ class $$ReceiptsTableTableManager
                 Value<DateTime> date = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
               }) => ReceiptsCompanion(
                 id: id,
                 merchant: merchant,
@@ -579,6 +643,7 @@ class $$ReceiptsTableTableManager
                 date: date,
                 category: category,
                 notes: notes,
+                deletedAt: deletedAt,
               ),
           createCompanionCallback:
               ({
@@ -588,6 +653,7 @@ class $$ReceiptsTableTableManager
                 required DateTime date,
                 required String category,
                 Value<String?> notes = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
               }) => ReceiptsCompanion.insert(
                 id: id,
                 merchant: merchant,
@@ -595,6 +661,7 @@ class $$ReceiptsTableTableManager
                 date: date,
                 category: category,
                 notes: notes,
+                deletedAt: deletedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

@@ -19,6 +19,10 @@ class AppTheme {
     ink: const Color(0xFF1E2A38),
     inkDim: const Color(0xFF5B6672),
     brand: const Color(0xFF24374D),
+    // Buttons match the app bar's navy in light mode — it already stands
+    // out clearly against the light paper background.
+    primaryButton: const Color(0xFF24374D),
+    onPrimaryButton: _onBrand,
     stamp: const Color(0xFFB23A2E),
     stampSoft: const Color(0xFFF5E3E0),
     line: const Color(0xFFDCDDD5),
@@ -32,6 +36,12 @@ class AppTheme {
     ink: const Color(0xFFECEAE2),
     inkDim: const Color(0xFF9AA3AC),
     brand: const Color(0xFF202E3F),
+    // The app bar keeps the dark navy brand, but buttons use a lighter
+    // accent instead — the dark navy barely contrasts against the
+    // near-black page background, so filled buttons would nearly
+    // disappear if they matched the app bar exactly.
+    primaryButton: const Color(0xFF8CB2E0),
+    onPrimaryButton: const Color(0xFF14202E),
     stamp: const Color(0xFFE2786A),
     stampSoft: const Color(0xFF3A2523),
     line: const Color(0xFF2A3038),
@@ -45,15 +55,17 @@ class AppTheme {
     required Color ink,
     required Color inkDim,
     required Color brand,
+    required Color primaryButton,
+    required Color onPrimaryButton,
     required Color stamp,
     required Color stampSoft,
     required Color line,
   }) {
     final colorScheme =
         ColorScheme.fromSeed(seedColor: brand, brightness: brightness).copyWith(
-          primary: brand,
-          onPrimary: _onBrand,
-          secondary: brand,
+          primary: primaryButton,
+          onPrimary: onPrimaryButton,
+          secondary: primaryButton,
           error: stamp,
           onError: _onBrand,
           errorContainer: stampSoft,
@@ -70,8 +82,14 @@ class AppTheme {
       brightness: brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: paper,
-      appBarTheme: AppBarTheme(backgroundColor: brand, foregroundColor: _onBrand),
-      cardTheme: CardThemeData(color: paperRaised, surfaceTintColor: Colors.transparent),
+      appBarTheme: AppBarTheme(
+        backgroundColor: brand,
+        foregroundColor: _onBrand,
+      ),
+      cardTheme: CardThemeData(
+        color: paperRaised,
+        surfaceTintColor: Colors.transparent,
+      ),
     );
   }
 }

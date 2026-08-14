@@ -111,7 +111,7 @@ void main() {
     expect(summary.previousMonthTotalYen, 250);
   });
 
-  test('topCategories ranks by total descending and caps at 3, ignoring other months', () {
+  test('allCategories ranks by total descending, ignoring other months', () {
     final receipts = [
       _receipt(
         id: 1,
@@ -152,53 +152,14 @@ void main() {
 
     final summary = MonthSummary.of(receipts, DateTime(2026, 8, 15));
 
-    expect(summary.topCategories, hasLength(3));
-    expect(summary.topCategories[0].category, ReceiptCategory.groceries);
-    expect(summary.topCategories[0].amountYen, 500);
-    expect(summary.topCategories[1].category, ReceiptCategory.dining);
-    expect(summary.topCategories[1].amountYen, 300);
-    expect(summary.topCategories[2].category, ReceiptCategory.shopping);
-    expect(summary.topCategories[2].amountYen, 200);
-  });
-
-  test('recent returns the 3 most recently dated receipts overall, newest first', () {
-    final receipts = [
-      _receipt(
-        id: 1,
-        merchant: 'Oldest',
-        amountYen: 100,
-        date: DateTime(2026, 6, 1),
-        category: 'groceries',
-      ),
-      _receipt(
-        id: 2,
-        merchant: 'Newest',
-        amountYen: 200,
-        date: DateTime(2026, 8, 10),
-        category: 'groceries',
-      ),
-      _receipt(
-        id: 3,
-        merchant: 'Second newest',
-        amountYen: 300,
-        date: DateTime(2026, 8, 5),
-        category: 'groceries',
-      ),
-      _receipt(
-        id: 4,
-        merchant: 'Third newest',
-        amountYen: 400,
-        date: DateTime(2026, 7, 20),
-        category: 'groceries',
-      ),
-    ];
-
-    final summary = MonthSummary.of(receipts, DateTime(2026, 8, 15));
-
-    expect(summary.recent.map((r) => r.merchant), [
-      'Newest',
-      'Second newest',
-      'Third newest',
-    ]);
+    expect(summary.allCategories, hasLength(4));
+    expect(summary.allCategories[0].category, ReceiptCategory.groceries);
+    expect(summary.allCategories[0].amountYen, 500);
+    expect(summary.allCategories[1].category, ReceiptCategory.dining);
+    expect(summary.allCategories[1].amountYen, 300);
+    expect(summary.allCategories[2].category, ReceiptCategory.shopping);
+    expect(summary.allCategories[2].amountYen, 200);
+    expect(summary.allCategories[3].category, ReceiptCategory.transport);
+    expect(summary.allCategories[3].amountYen, 100);
   });
 }

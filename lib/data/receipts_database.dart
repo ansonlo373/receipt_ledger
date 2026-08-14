@@ -19,6 +19,8 @@ class Receipts extends Table {
   TextColumn get category => text()();
 
   TextColumn get notes => text().nullable()();
+
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 @DriftDatabase(tables: [Receipts])
@@ -28,7 +30,17 @@ class ReceiptsDatabase extends _$ReceiptsDatabase {
   ReceiptsDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(receipts, receipts.deletedAt);
+      }
+    },
+  );
 }
 
 LazyDatabase _openConnection() {

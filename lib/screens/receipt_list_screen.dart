@@ -5,6 +5,7 @@ import 'package:receipt_ledger/models/receipt_category.dart';
 import 'package:receipt_ledger/models/receipt_filter.dart';
 import 'package:receipt_ledger/screens/filter_screen.dart';
 import 'package:receipt_ledger/screens/receipt_form_screen.dart';
+import 'package:receipt_ledger/screens/trash_screen.dart';
 import 'package:receipt_ledger/utils/formatters.dart';
 
 class ReceiptListScreen extends StatefulWidget {
@@ -20,6 +21,40 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
   String _searchQuery = '';
   ReceiptFilter _filter = const ReceiptFilter();
   bool _newestFirst = true;
+  final Set<int> _selectedIds = {};
+
+  bool get _isSelecting => _selectedIds.isNotEmpty;
+
+  void _toggleSelected(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _clearSelection() => setState(_selectedIds.clear);
+
+  Future<void> _deleteSelected() async {
+    final ids = List.of(_selectedIds);
+    setState(_selectedIds.clear);
+    for (final id in ids) {
+      await widget.repository.softDelete(id);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ids.length == 1
+                ? 'Receipt moved to Trash'
+                : '${ids.length} receipts moved to Trash',
+          ),
+        ),
+      );
+    }
+  }
 
   void _openManualEntry({Receipt? existing}) {
     Navigator.of(context).push(
@@ -28,6 +63,14 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
           repository: widget.repository,
           existing: existing,
         ),
+      ),
+    );
+  }
+
+  void _openTrash() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TrashScreen(repository: widget.repository),
       ),
     );
   }
@@ -60,7 +103,31 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Receipts')),
+      appBar: _isSelecting
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _clearSelection,
+              ),
+              title: Text('${_selectedIds.length} selected'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete selected',
+                  onPressed: _deleteSelected,
+                ),
+              ],
+            )
+          : AppBar(
+              title: const Text('Receipts'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Trash',
+                  onPressed: _openTrash,
+                ),
+              ],
+            ),
       body: StreamBuilder<List<Receipt>>(
         stream: widget.repository.watchAll(),
         builder: (context, snapshot) {
@@ -145,37 +212,31 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
                         itemCount: receipts.length,
                         itemBuilder: (context, index) {
                           final receipt = receipts[index];
-                          return Dismissible(
-                            key: ValueKey(receipt.id),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.errorContainer,
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: Icon(
-                                Icons.delete,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onErrorContainer,
-                              ),
+                          final selected = _selectedIds.contains(receipt.id);
+                          return ListTile(
+                            leading: _isSelecting
+                                ? Icon(
+                                    selected
+                                        ? Icons.check_circle
+                                        : Icons.radio_button_unchecked,
+                                    color: selected
+                                        ? Theme.of(context).colorScheme.primary
+                                        : null,
+                                  )
+                                : null,
+                            selected: selected,
+                            title: Text(receipt.merchant),
+                            subtitle: Text(
+                              '${dateFormat.format(receipt.date)} · '
+                              '${ReceiptCategory.fromName(receipt.category).label}',
                             ),
-                            onDismissed: (_) =>
-                                widget.repository.delete(receipt.id),
-                            child: ListTile(
-                              title: Text(receipt.merchant),
-                              subtitle: Text(
-                                '${dateFormat.format(receipt.date)} · '
-                                '${ReceiptCategory.fromName(receipt.category).label}',
-                              ),
-                              trailing: Text(
-                                currencyFormat.format(receipt.amountYen),
-                              ),
-                              onTap: () => _openManualEntry(existing: receipt),
+                            trailing: Text(
+                              currencyFormat.format(receipt.amountYen),
                             ),
+                            onTap: () => _isSelecting
+                                ? _toggleSelected(receipt.id)
+                                : _openManualEntry(existing: receipt),
+                            onLongPress: () => _toggleSelected(receipt.id),
                           );
                         },
                       ),
@@ -184,10 +245,12 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openManualEntry(),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _isSelecting
+          ? null
+          : FloatingActionButton(
+              onPressed: () => _openManualEntry(),
+              child: const Icon(Icons.add),
+            ),
     );
   }
 }

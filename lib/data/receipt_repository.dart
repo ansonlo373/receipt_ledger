@@ -5,6 +5,8 @@ import 'package:receipt_ledger/models/receipt_category.dart';
 abstract class ReceiptRepository {
   Stream<List<Receipt>> watchAll();
 
+  Stream<List<Receipt>> watchTrash();
+
   Future<void> add({
     required String merchant,
     required int amountYen,
@@ -22,7 +24,13 @@ abstract class ReceiptRepository {
     String? notes,
   });
 
-  Future<void> delete(int id);
+  Future<void> softDelete(int id);
+
+  Future<void> restore(int id);
+
+  Future<void> purgeExpiredTrash({
+    Duration retention = const Duration(days: 30),
+  });
 }
 
 class DriftReceiptRepository implements ReceiptRepository {
@@ -32,9 +40,18 @@ class DriftReceiptRepository implements ReceiptRepository {
 
   @override
   Stream<List<Receipt>> watchAll() {
-    return (_database.select(
-      _database.receipts,
-    )..orderBy([(r) => OrderingTerm.desc(r.date)])).watch();
+    return (_database.select(_database.receipts)
+          ..where((r) => r.deletedAt.isNull())
+          ..orderBy([(r) => OrderingTerm.desc(r.date)]))
+        .watch();
+  }
+
+  @override
+  Stream<List<Receipt>> watchTrash() {
+    return (_database.select(_database.receipts)
+          ..where((r) => r.deletedAt.isNotNull())
+          ..orderBy([(r) => OrderingTerm.desc(r.deletedAt)]))
+        .watch();
   }
 
   @override
@@ -67,23 +84,40 @@ class DriftReceiptRepository implements ReceiptRepository {
     required ReceiptCategory category,
     String? notes,
   }) {
-    return (_database.update(_database.receipts)
-          ..where((r) => r.id.equals(id)))
-        .write(
-          ReceiptsCompanion(
-            merchant: Value(merchant),
-            amountYen: Value(amountYen),
-            date: Value(date),
-            category: Value(category.name),
-            notes: Value(notes),
-          ),
-        );
+    return (_database.update(
+      _database.receipts,
+    )..where((r) => r.id.equals(id))).write(
+      ReceiptsCompanion(
+        merchant: Value(merchant),
+        amountYen: Value(amountYen),
+        date: Value(date),
+        category: Value(category.name),
+        notes: Value(notes),
+      ),
+    );
   }
 
   @override
-  Future<void> delete(int id) {
-    return (_database.delete(
-      _database.receipts,
-    )..where((r) => r.id.equals(id))).go();
+  Future<void> softDelete(int id) {
+    return (_database.update(_database.receipts)..where((r) => r.id.equals(id)))
+        .write(ReceiptsCompanion(deletedAt: Value(DateTime.now())));
+  }
+
+  @override
+  Future<void> restore(int id) {
+    return (_database.update(_database.receipts)..where((r) => r.id.equals(id)))
+        .write(const ReceiptsCompanion(deletedAt: Value(null)));
+  }
+
+  @override
+  Future<void> purgeExpiredTrash({
+    Duration retention = const Duration(days: 30),
+  }) {
+    final cutoff = DateTime.now().subtract(retention);
+    return (_database.delete(_database.receipts)..where(
+          (r) =>
+              r.deletedAt.isNotNull() & r.deletedAt.isSmallerThanValue(cutoff),
+        ))
+        .go();
   }
 }

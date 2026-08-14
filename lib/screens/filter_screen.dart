@@ -18,7 +18,10 @@ DateTimeRange _presetRange(String preset) {
       return DateTimeRange(start: now, end: now);
     case 'This week':
       final start = now.subtract(Duration(days: now.weekday - 1));
-      return DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
+      return DateTimeRange(
+        start: start,
+        end: start.add(const Duration(days: 6)),
+      );
     case 'This month':
       return DateTimeRange(
         start: DateTime(now.year, now.month, 1),
@@ -30,7 +33,10 @@ DateTimeRange _presetRange(String preset) {
         end: DateTime(now.year, now.month, 0),
       );
     case 'This year':
-      return DateTimeRange(start: DateTime(now.year, 1, 1), end: DateTime(now.year, 12, 31));
+      return DateTimeRange(
+        start: DateTime(now.year, 1, 1),
+        end: DateTime(now.year, 12, 31),
+      );
   }
   throw ArgumentError('Unknown preset: $preset');
 }

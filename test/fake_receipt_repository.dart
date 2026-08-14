@@ -15,14 +15,25 @@ class FakeReceiptRepository implements ReceiptRepository {
   final _changes = StreamController<List<Receipt>>.broadcast();
   int _nextId = 1;
 
-  @override
-  Stream<List<Receipt>> watchAll() {
+  void _notify() => _changes.add(List.unmodifiable(_receipts));
+
+  Stream<List<Receipt>> _watchWhere(bool Function(Receipt) test) {
     return Stream.multi((controller) {
-      controller.add(List.unmodifiable(_receipts));
-      final subscription = _changes.stream.listen(controller.add);
+      controller.add(List.unmodifiable(_receipts.where(test)));
+      final subscription = _changes.stream
+          .map((receipts) => receipts.where(test).toList())
+          .listen(controller.add);
       controller.onCancel = subscription.cancel;
     });
   }
+
+  @override
+  Stream<List<Receipt>> watchAll() =>
+      _watchWhere((r) => r.deletedAt == null);
+
+  @override
+  Stream<List<Receipt>> watchTrash() =>
+      _watchWhere((r) => r.deletedAt != null);
 
   @override
   Future<void> add({
@@ -42,7 +53,7 @@ class FakeReceiptRepository implements ReceiptRepository {
         notes: notes,
       ),
     );
-    _changes.add(List.unmodifiable(_receipts));
+    _notify();
   }
 
   @override
@@ -62,13 +73,50 @@ class FakeReceiptRepository implements ReceiptRepository {
       date: date,
       category: category.name,
       notes: notes,
+      deletedAt: _receipts[index].deletedAt,
     );
-    _changes.add(List.unmodifiable(_receipts));
+    _notify();
   }
 
   @override
-  Future<void> delete(int id) async {
-    _receipts.removeWhere((r) => r.id == id);
-    _changes.add(List.unmodifiable(_receipts));
+  Future<void> softDelete(int id) async {
+    final index = _receipts.indexWhere((r) => r.id == id);
+    final r = _receipts[index];
+    _receipts[index] = Receipt(
+      id: r.id,
+      merchant: r.merchant,
+      amountYen: r.amountYen,
+      date: r.date,
+      category: r.category,
+      notes: r.notes,
+      deletedAt: DateTime.now(),
+    );
+    _notify();
+  }
+
+  @override
+  Future<void> restore(int id) async {
+    final index = _receipts.indexWhere((r) => r.id == id);
+    final r = _receipts[index];
+    _receipts[index] = Receipt(
+      id: r.id,
+      merchant: r.merchant,
+      amountYen: r.amountYen,
+      date: r.date,
+      category: r.category,
+      notes: r.notes,
+    );
+    _notify();
+  }
+
+  @override
+  Future<void> purgeExpiredTrash({
+    Duration retention = const Duration(days: 30),
+  }) async {
+    final cutoff = DateTime.now().subtract(retention);
+    _receipts.removeWhere(
+      (r) => r.deletedAt != null && r.deletedAt!.isBefore(cutoff),
+    );
+    _notify();
   }
 }

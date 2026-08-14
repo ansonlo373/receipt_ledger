@@ -6,11 +6,7 @@ import 'package:receipt_ledger/data/receipts_database.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 
 class ReceiptFormScreen extends StatefulWidget {
-  const ReceiptFormScreen({
-    super.key,
-    required this.repository,
-    this.existing,
-  });
+  const ReceiptFormScreen({super.key, required this.repository, this.existing});
 
   final ReceiptRepository repository;
   final Receipt? existing;
@@ -101,8 +97,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
             TextFormField(
               controller: _merchantController,
               decoration: const InputDecoration(labelText: 'Merchant'),
-              validator: (value) =>
-                  (value == null || value.trim().isEmpty)
+              validator: (value) => (value == null || value.trim().isEmpty)
                   ? 'Enter a merchant'
                   : null,
             ),
@@ -148,7 +143,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
               decoration: const InputDecoration(labelText: 'Notes'),
             ),
             const SizedBox(height: 24),
-            ElevatedButton(onPressed: _save, child: const Text('Save')),
+            FilledButton(onPressed: _save, child: const Text('Save')),
           ],
         ),
       ),
