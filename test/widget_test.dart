@@ -1,30 +1,45 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/screens/receipt_list_screen.dart';
 
-import 'package:receipt_ledger/main.dart';
+import 'fake_receipt_repository.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('shows empty state message when there are no receipts', (
+    WidgetTester tester,
+  ) async {
+    final repository = FakeReceiptRepository();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      MaterialApp(home: ReceiptListScreen(repository: repository)),
+    );
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    expect(find.text('No receipts yet'), findsOneWidget);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('lists each receipt\'s merchant and formatted amount', (
+    WidgetTester tester,
+  ) async {
+    final repository = FakeReceiptRepository([
+      Receipt(
+        id: 1,
+        merchant: 'Trader Joe\'s',
+        amountYen: 1240,
+        date: DateTime(2026, 8, 10),
+        category: 'groceries',
+        notes: null,
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: ReceiptListScreen(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No receipts yet'), findsNothing);
+    expect(find.text('Trader Joe\'s'), findsOneWidget);
+    expect(find.text('¥1,240'), findsOneWidget);
   });
 }
