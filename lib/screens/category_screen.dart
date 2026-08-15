@@ -325,57 +325,59 @@ class _TrendsSectionState extends State<_TrendsSection> {
             child: GestureDetector(
               onHorizontalDragEnd: _onHorizontalSwipe,
               behavior: HitTestBehavior.translucent,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final maxBarHeight = math.max(
-                    0.0,
-                    constraints.maxHeight - 40,
-                  );
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (final bucket in buckets)
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 3),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Text(
-                                  compactCurrencyFormat.format(
-                                    bucket.amountYen,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.labelSmall,
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  height: maxAmount == 0
-                                      ? 2
-                                      : (bucket.amountYen / maxAmount) *
-                                            maxBarHeight,
-                                  decoration: BoxDecoration(
-                                    color: barColor,
-                                    borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final bucket in buckets)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: Column(
+                          children: [
+                            Text(
+                              compactCurrencyFormat.format(bucket.amountYen),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                            const SizedBox(height: 4),
+                            // Expanded + FractionallySizedBox sizes the bar
+                            // from whatever space remains after the labels,
+                            // so it can never overflow regardless of font
+                            // scale or device.
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.bottomCenter,
+                                child: FractionallySizedBox(
+                                  heightFactor: maxAmount == 0
+                                      ? 0.02
+                                      : (bucket.amountYen / maxAmount).clamp(
+                                          0.02,
+                                          1.0,
+                                        ),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: barColor,
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(4),
+                                      ),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _bucketLabel(bucket.start),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.labelSmall,
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _bucketLabel(bucket.start),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          ],
                         ),
-                    ],
-                  );
-                },
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
