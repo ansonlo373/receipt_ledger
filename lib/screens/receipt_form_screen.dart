@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -7,10 +9,20 @@ import 'package:receipt_ledger/models/category_memory.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 
 class ReceiptFormScreen extends StatefulWidget {
-  const ReceiptFormScreen({super.key, required this.repository, this.existing});
+  const ReceiptFormScreen({
+    super.key,
+    required this.repository,
+    this.existing,
+    this.initialPhotoPath,
+  });
 
   final ReceiptRepository repository;
   final Receipt? existing;
+
+  /// A photo already captured before opening this screen (from the "Scan a
+  /// receipt" flow). Ignored when [existing] is set — an edited receipt's
+  /// photo comes from its own record instead.
+  final String? initialPhotoPath;
 
   @override
   State<ReceiptFormScreen> createState() => _ReceiptFormScreenState();
@@ -25,11 +37,13 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
   late ReceiptCategory _category;
   bool _categoryManuallySet = false;
   List<Receipt> _allReceipts = const [];
+  late String? _photoPath;
 
   @override
   void initState() {
     super.initState();
     final existing = widget.existing;
+    _photoPath = existing?.photoPath ?? widget.initialPhotoPath;
     _merchantController = TextEditingController(text: existing?.merchant);
     _amountController = TextEditingController(
       text: existing == null ? '' : existing.amountYen.toString(),
@@ -103,6 +117,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         date: _date,
         category: _category,
         notes: _notesController.text.isEmpty ? null : _notesController.text,
+        photoPath: _photoPath,
       );
     } else {
       await widget.repository.update(
@@ -112,6 +127,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         date: _date,
         category: _category,
         notes: _notesController.text.isEmpty ? null : _notesController.text,
+        photoPath: _photoPath,
       );
     }
 
@@ -124,6 +140,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
           date: other.date,
           category: _category,
           notes: other.notes,
+          photoPath: other.photoPath,
         );
       }
     }
@@ -177,6 +194,46 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (_photoPath != null) ...[
+              Stack(
+                children: [
+                  // BoxFit.contain (not cover) so a tall, narrow receipt is
+                  // shown in full, letterboxed if needed, instead of having
+                  // its top/bottom cropped to fill a fixed box — the saved
+                  // file itself is never cropped either way.
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 400),
+                      child: Container(
+                        width: double.infinity,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                        child: Image.file(
+                          File(_photoPath!),
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: CircleAvatar(
+                      backgroundColor: Colors.black54,
+                      child: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        color: Colors.white,
+                        tooltip: 'Remove photo',
+                        onPressed: () => setState(() => _photoPath = null),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
             TextFormField(
               controller: _merchantController,
               decoration: const InputDecoration(labelText: 'Merchant'),

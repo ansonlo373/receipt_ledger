@@ -21,6 +21,8 @@ class Receipts extends Table {
   TextColumn get notes => text().nullable()();
 
   DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  TextColumn get photoPath => text().nullable()();
 }
 
 @DriftDatabase(tables: [Receipts])
@@ -30,7 +32,7 @@ class ReceiptsDatabase extends _$ReceiptsDatabase {
   ReceiptsDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -38,6 +40,9 @@ class ReceiptsDatabase extends _$ReceiptsDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(receipts, receipts.deletedAt);
+      }
+      if (from < 3) {
+        await m.addColumn(receipts, receipts.photoPath);
       }
     },
   );

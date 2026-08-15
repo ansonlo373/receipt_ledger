@@ -42,6 +42,7 @@ class FakeReceiptRepository implements ReceiptRepository {
     required DateTime date,
     required ReceiptCategory category,
     String? notes,
+    String? photoPath,
   }) async {
     _receipts.add(
       Receipt(
@@ -51,6 +52,7 @@ class FakeReceiptRepository implements ReceiptRepository {
         date: date,
         category: category.name,
         notes: notes,
+        photoPath: photoPath,
       ),
     );
     _notify();
@@ -64,6 +66,7 @@ class FakeReceiptRepository implements ReceiptRepository {
     required DateTime date,
     required ReceiptCategory category,
     String? notes,
+    String? photoPath,
   }) async {
     final index = _receipts.indexWhere((r) => r.id == id);
     _receipts[index] = Receipt(
@@ -73,6 +76,7 @@ class FakeReceiptRepository implements ReceiptRepository {
       date: date,
       category: category.name,
       notes: notes,
+      photoPath: photoPath,
       deletedAt: _receipts[index].deletedAt,
     );
     _notify();
@@ -89,6 +93,7 @@ class FakeReceiptRepository implements ReceiptRepository {
       date: r.date,
       category: r.category,
       notes: r.notes,
+      photoPath: r.photoPath,
       deletedAt: DateTime.now(),
     );
     _notify();
@@ -105,6 +110,7 @@ class FakeReceiptRepository implements ReceiptRepository {
       date: r.date,
       category: r.category,
       notes: r.notes,
+      photoPath: r.photoPath,
     );
     _notify();
   }

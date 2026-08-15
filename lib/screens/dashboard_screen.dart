@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_mlkit_document_scanner/google_mlkit_document_scanner.dart';
 import 'package:receipt_ledger/data/receipt_repository.dart';
 import 'package:receipt_ledger/data/receipts_database.dart';
 import 'package:receipt_ledger/models/month_summary.dart';
@@ -7,6 +8,7 @@ import 'package:receipt_ledger/screens/category_screen.dart';
 import 'package:receipt_ledger/screens/receipt_form_screen.dart';
 import 'package:receipt_ledger/screens/receipt_list_screen.dart';
 import 'package:receipt_ledger/screens/settings_screen.dart';
+import 'package:receipt_ledger/services/photo_storage.dart';
 import 'package:receipt_ledger/theme/app_theme.dart';
 import 'package:receipt_ledger/theme/theme_controller.dart';
 import 'package:receipt_ledger/utils/category_colors.dart';
@@ -48,6 +50,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
         builder: (context) => ReceiptFormScreen(
           repository: widget.repository,
           existing: existing,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _scanReceipt() async {
+    // DocumentScanner's own UI covers both camera capture (with live edge
+    // detection) and gallery import (isGalleryImport) in one flow, then lets
+    // the user confirm/adjust the crop before returning the cropped image —
+    // so no separate camera-vs-gallery picker or manual cropper is needed.
+    final scanner = DocumentScanner(
+      options: DocumentScannerOptions(
+        documentFormats: {DocumentFormat.jpeg},
+        mode: ScannerMode.filter,
+        pageLimit: 1,
+        isGalleryImport: true,
+      ),
+    );
+
+    DocumentScanningResult? result;
+    try {
+      result = await scanner.scanDocument();
+    } catch (_) {
+      // User cancelled the scan, or the Play Services scanner module isn't
+      // available — either way, just return to the dashboard.
+      return;
+    } finally {
+      scanner.close();
+    }
+
+    final images = result.images ?? const [];
+    if (images.isEmpty) return;
+
+    final savedPath = await savePhotoLocally(images.first);
+    if (!mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ReceiptFormScreen(
+          repository: widget.repository,
+          initialPhotoPath: savedPath,
         ),
       ),
     );
@@ -103,7 +146,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               FilledButton.icon(
-                onPressed: () => _openManualEntry(),
+                onPressed: _scanReceipt,
                 icon: const Icon(Icons.document_scanner_outlined),
                 label: const Text('Scan a receipt'),
               ),

@@ -13,6 +13,7 @@ abstract class ReceiptRepository {
     required DateTime date,
     required ReceiptCategory category,
     String? notes,
+    String? photoPath,
   });
 
   Future<void> update({
@@ -22,6 +23,7 @@ abstract class ReceiptRepository {
     required DateTime date,
     required ReceiptCategory category,
     String? notes,
+    String? photoPath,
   });
 
   Future<void> softDelete(int id);
@@ -61,6 +63,7 @@ class DriftReceiptRepository implements ReceiptRepository {
     required DateTime date,
     required ReceiptCategory category,
     String? notes,
+    String? photoPath,
   }) {
     return _database
         .into(_database.receipts)
@@ -71,6 +74,7 @@ class DriftReceiptRepository implements ReceiptRepository {
             date: date,
             category: category.name,
             notes: Value(notes),
+            photoPath: Value(photoPath),
           ),
         );
   }
@@ -83,6 +87,7 @@ class DriftReceiptRepository implements ReceiptRepository {
     required DateTime date,
     required ReceiptCategory category,
     String? notes,
+    String? photoPath,
   }) {
     return (_database.update(
       _database.receipts,
@@ -93,6 +98,7 @@ class DriftReceiptRepository implements ReceiptRepository {
         date: Value(date),
         category: Value(category.name),
         notes: Value(notes),
+        photoPath: Value(photoPath),
       ),
     );
   }

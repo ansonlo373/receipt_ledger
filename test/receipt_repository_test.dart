@@ -63,6 +63,32 @@ void main() {
     expect(receipts.single.notes, 'birthday dinner');
   });
 
+  test('add and update both store a photoPath that watchAll reflects', () async {
+    await repository.add(
+      merchant: 'Trader Joe\'s',
+      amountYen: 4599,
+      date: DateTime(2026, 8, 10),
+      category: ReceiptCategory.groceries,
+      notes: null,
+      photoPath: '/receipts/photo1.jpg',
+    );
+    final stored = (await repository.watchAll().first).single;
+    expect(stored.photoPath, '/receipts/photo1.jpg');
+
+    await repository.update(
+      id: stored.id,
+      merchant: stored.merchant,
+      amountYen: stored.amountYen,
+      date: stored.date,
+      category: ReceiptCategory.groceries,
+      notes: stored.notes,
+      photoPath: null,
+    );
+
+    final updated = (await repository.watchAll().first).single;
+    expect(updated.photoPath, isNull);
+  });
+
   test('softDelete removes a receipt from watchAll but keeps it in watchTrash', () async {
     await repository.add(
       merchant: 'Trader Joe\'s',
