@@ -334,11 +334,23 @@ class _TrendsSectionState extends State<_TrendsSection> {
                         padding: const EdgeInsets.symmetric(horizontal: 3),
                         child: Column(
                           children: [
-                            Text(
-                              compactCurrencyFormat.format(bucket.amountYen),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall,
+                            // Flexible + FittedBox(scaleDown) instead of a
+                            // fixed-size Text: if the whole chart is
+                            // squeezed shorter than two lines of label text
+                            // need (e.g. larger system font scale on a real
+                            // device), the label shrinks instead of
+                            // overflowing.
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  compactCurrencyFormat.format(
+                                    bucket.amountYen,
+                                  ),
+                                  maxLines: 1,
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 4),
                             // Expanded + FractionallySizedBox sizes the bar
@@ -349,6 +361,7 @@ class _TrendsSectionState extends State<_TrendsSection> {
                               child: Align(
                                 alignment: Alignment.bottomCenter,
                                 child: FractionallySizedBox(
+                                  widthFactor: 1.0,
                                   heightFactor: maxAmount == 0
                                       ? 0.02
                                       : (bucket.amountYen / maxAmount).clamp(
@@ -367,11 +380,15 @@ class _TrendsSectionState extends State<_TrendsSection> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                              _bucketLabel(bucket.start),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall,
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  _bucketLabel(bucket.start),
+                                  maxLines: 1,
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ),
                             ),
                           ],
                         ),
