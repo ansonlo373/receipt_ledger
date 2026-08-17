@@ -4,11 +4,13 @@ import 'package:receipt_ledger/data/receipt_repository.dart';
 import 'package:receipt_ledger/data/receipts_database.dart';
 import 'package:receipt_ledger/models/month_summary.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
+import 'package:receipt_ledger/models/receipt_ocr_result.dart';
 import 'package:receipt_ledger/screens/category_screen.dart';
 import 'package:receipt_ledger/screens/receipt_form_screen.dart';
 import 'package:receipt_ledger/screens/receipt_list_screen.dart';
 import 'package:receipt_ledger/screens/settings_screen.dart';
 import 'package:receipt_ledger/services/photo_storage.dart';
+import 'package:receipt_ledger/services/receipt_ocr.dart';
 import 'package:receipt_ledger/theme/app_theme.dart';
 import 'package:receipt_ledger/theme/theme_controller.dart';
 import 'package:receipt_ledger/utils/category_colors.dart';
@@ -86,11 +88,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final savedPath = await savePhotoLocally(images.first);
     if (!mounted) return;
 
+    // Text recognition can take a moment on-device; show a lightweight,
+    // non-dismissible progress indicator rather than leaving the screen
+    // looking frozen.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    ReceiptOcrResult? ocrResult;
+    try {
+      ocrResult = await recognizeReceipt(savedPath);
+    } catch (_) {
+      // OCR is a convenience, not a requirement — fall through to a blank
+      // (but still photo-attached) form rather than blocking the flow.
+      ocrResult = null;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss the progress dialog
+
+    final foundAnything =
+        ocrResult != null &&
+        (ocrResult.merchant != null ||
+            ocrResult.amountYen != null ||
+            ocrResult.date != null);
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ReceiptFormScreen(
           repository: widget.repository,
           initialPhotoPath: savedPath,
+          initialMerchant: ocrResult?.merchant,
+          initialAmountYen: ocrResult?.amountYen,
+          initialAmountCandidates: ocrResult?.amountCandidates ?? const [],
+          initialDate: ocrResult?.date,
+          ocrSource: foundAnything ? ocrResult?.source : null,
         ),
       ),
     );

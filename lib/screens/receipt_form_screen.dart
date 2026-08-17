@@ -7,6 +7,8 @@ import 'package:receipt_ledger/data/receipt_repository.dart';
 import 'package:receipt_ledger/data/receipts_database.dart';
 import 'package:receipt_ledger/models/category_memory.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
+import 'package:receipt_ledger/models/receipt_ocr_result.dart';
+import 'package:receipt_ledger/utils/formatters.dart';
 
 class ReceiptFormScreen extends StatefulWidget {
   const ReceiptFormScreen({
@@ -14,6 +16,11 @@ class ReceiptFormScreen extends StatefulWidget {
     required this.repository,
     this.existing,
     this.initialPhotoPath,
+    this.initialMerchant,
+    this.initialAmountYen,
+    this.initialAmountCandidates = const [],
+    this.initialDate,
+    this.ocrSource,
   });
 
   final ReceiptRepository repository;
@@ -23,6 +30,23 @@ class ReceiptFormScreen extends StatefulWidget {
   /// receipt" flow). Ignored when [existing] is set — an edited receipt's
   /// photo comes from its own record instead.
   final String? initialPhotoPath;
+
+  /// Fields guessed from the photo via OCR, all ignored when [existing] is
+  /// set. Always editable — OCR is a starting point, not a commitment.
+  final String? initialMerchant;
+  final int? initialAmountYen;
+
+  /// Every plausible ¥-marked amount OCR found, most-likely first. When this
+  /// has more than one entry the amount is genuinely ambiguous — shown as
+  /// quick-pick chips instead of trusting [initialAmountYen] alone.
+  final List<int> initialAmountCandidates;
+
+  final DateTime? initialDate;
+
+  /// Which OCR pass produced the initial* fields, shown as a small badge so
+  /// the user knows the data was guessed and should be double-checked. Null
+  /// when there's nothing to badge (manual entry, or OCR found nothing).
+  final OcrSource? ocrSource;
 
   @override
   State<ReceiptFormScreen> createState() => _ReceiptFormScreenState();
@@ -44,12 +68,16 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
     super.initState();
     final existing = widget.existing;
     _photoPath = existing?.photoPath ?? widget.initialPhotoPath;
-    _merchantController = TextEditingController(text: existing?.merchant);
+    _merchantController = TextEditingController(
+      text: existing?.merchant ?? widget.initialMerchant,
+    );
     _amountController = TextEditingController(
-      text: existing == null ? '' : existing.amountYen.toString(),
+      text: existing != null
+          ? existing.amountYen.toString()
+          : widget.initialAmountYen?.toString() ?? '',
     );
     _notesController = TextEditingController(text: existing?.notes);
-    _date = existing?.date ?? DateTime.now();
+    _date = existing?.date ?? widget.initialDate ?? DateTime.now();
     _category = existing == null
         ? ReceiptCategory.other
         : ReceiptCategory.fromName(existing.category);
@@ -232,6 +260,16 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
                   ),
                 ],
               ),
+              if (widget.existing == null && widget.ocrSource != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '📱 ${widget.ocrSource!.label} — check the details below',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 16),
             ],
             TextFormField(
@@ -257,6 +295,39 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
                 return null;
               },
             ),
+            if (widget.existing == null &&
+                widget.initialAmountCandidates.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'OCR found more than one possible amount — pick one:',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final candidate in widget.initialAmountCandidates)
+                          ChoiceChip(
+                            label: Text(currencyFormat.format(candidate)),
+                            selected:
+                                _amountController.text ==
+                                candidate.toString(),
+                            onSelected: (_) => setState(
+                              () => _amountController.text = candidate
+                                  .toString(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Date'),
