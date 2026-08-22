@@ -14,6 +14,7 @@ import 'package:receipt_ledger/services/receipt_ocr.dart';
 import 'package:receipt_ledger/theme/app_theme.dart';
 import 'package:receipt_ledger/theme/theme_controller.dart';
 import 'package:receipt_ledger/utils/category_colors.dart';
+import 'package:receipt_ledger/services/auth_service.dart';
 import 'package:receipt_ledger/utils/formatters.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -21,10 +22,12 @@ class DashboardScreen extends StatefulWidget {
     super.key,
     required this.repository,
     required this.themeController,
+    required this.authService,
   });
 
   final ReceiptRepository repository;
   final ThemeController themeController;
+  final AuthService authService;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -158,7 +161,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) =>
-                    SettingsScreen(themeController: widget.themeController),
+                    SettingsScreen(
+                      themeController: widget.themeController,
+                      authService: widget.authService,
+                    ),
               ),
             ),
           ),

@@ -46,3 +46,17 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Firebase / Cloud Functions
+# Note: google-services.json and lib/firebase_options.dart ARE committed on
+# purpose — they hold public client identifiers, not secrets. Real secrets
+# (the Gemini API key) live in functions/.env, which must never be committed;
+# .githooks/pre-commit blocks it as a second line of defence.
+functions/node_modules/
+functions/lib/
+functions/.env
+functions/.env.*
+!functions/.env.example
+.firebase/
+firebase-debug.log
+firestore-debug.log
