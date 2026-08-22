@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "790572258775",
+    "project_id": "receipt-ledger-9441c",
+    "storage_bucket": "receipt-ledger-9441c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:790572258775:android:c84ad37529bf0a856ca792",
+        "android_client_info": {
+          "package_name": "com.ledgerapp.receipt_ledger"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "790572258775-dncejq4m7a9rmqbkjsok9phf251egpda.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ledgerapp.receipt_ledger",
+            "certificate_hash": "11e559ed17bde6f0cac7e2c8b43bd1e6ce3f9607"
+          }
+        },
+        {
+          "client_id": "790572258775-gbipqctorqqvrj14pjsrs6r7lvk8c603.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAx_ra1HzsvFYdDZubP_j9L2KzaiFteU9I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "790572258775-gbipqctorqqvrj14pjsrs6r7lvk8c603.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
