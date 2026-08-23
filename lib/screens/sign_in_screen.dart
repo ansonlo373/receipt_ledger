@@ -43,7 +43,8 @@ class _SignInScreenState extends State<SignInScreen> {
     } on FirebaseAuthException catch (e) {
       if (mounted) setState(() => _error = authErrorMessage(e));
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not sign in. Please try again.');
+      if (mounted)
+        setState(() => _error = 'Could not sign in. Please try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

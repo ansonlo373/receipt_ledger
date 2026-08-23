@@ -2,7 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:receipt_ledger/models/ocr_line.dart';
 import 'package:receipt_ledger/services/receipt_line_grouping.dart';
 
-OcrLine _line(String text, {required double top, required double bottom, required double left}) {
+OcrLine _line(
+  String text, {
+  required double top,
+  required double bottom,
+  required double left,
+}) {
   return OcrLine(text: text, top: top, bottom: bottom, left: left);
 }
 

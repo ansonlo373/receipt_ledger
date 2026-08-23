@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// Receipts are strictly private to the account that created them: the only
+// path anyone can touch is their own /users/{uid}/receipts subtree, and only
+// while signed in. Everything else is denied by the absence of a rule.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/receipts/{receiptId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

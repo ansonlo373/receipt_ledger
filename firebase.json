@@ -1,1 +1,28 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"receipt-ledger-9441c","appId":"1:790572258775:android:c84ad37529bf0a856ca792","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"receipt-ledger-9441c","configurations":{"android":"1:790572258775:android:c84ad37529bf0a856ca792"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "receipt-ledger-9441c",
+          "appId": "1:790572258775:android:c84ad37529bf0a856ca792",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "receipt-ledger-9441c",
+          "configurations": {
+            "android": "1:790572258775:android:c84ad37529bf0a856ca792"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 
 class ReceiptFilter {
