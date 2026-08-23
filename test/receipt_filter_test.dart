@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 import 'package:receipt_ledger/models/receipt_filter.dart';
 
@@ -10,11 +10,12 @@ Receipt _receipt({
   required String category,
 }) {
   return Receipt(
-    id: 1,
+    id: '1',
     merchant: merchant,
     amountYen: 100,
     date: date,
     category: category,
+    createdAt: date,
     notes: null,
   );
 }

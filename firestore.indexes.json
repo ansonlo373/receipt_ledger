@@ -1,0 +1,14 @@
+{
+  "indexes": [
+    {
+      "_comment": "watchAll(): where(deletedAt == null).orderBy(date desc). Filtering on one field and ordering by a different one needs a composite index. watchTrash() needs no entry here: it filters and orders on deletedAt alone, which Firestore's automatic single-field indexing already covers.",
+      "collectionGroup": "receipts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "deletedAt", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

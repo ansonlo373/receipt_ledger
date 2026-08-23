@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/month_summary.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 
@@ -11,11 +11,12 @@ Receipt _receipt({
   required String category,
 }) {
   return Receipt(
-    id: id,
+    id: id.toString(),
     merchant: merchant,
     amountYen: amountYen,
     date: date,
     category: category,
+    createdAt: date,
     notes: null,
   );
 }

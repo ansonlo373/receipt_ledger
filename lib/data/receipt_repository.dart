@@ -1,13 +1,18 @@
-import 'package:drift/drift.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 
+/// What the app needs from storage, with no hint of what is behind it, so
+/// screens and tests can be handed a fake instead of a real database.
 abstract class ReceiptRepository {
+  /// Live receipts, newest receipt date first. Excludes the trash.
   Stream<List<Receipt>> watchAll();
 
+  /// Soft-deleted receipts, most recently deleted first.
   Stream<List<Receipt>> watchTrash();
 
-  Future<void> add({
+  /// Returns the new receipt's id, so a caller can immediately attach
+  /// something to it — the photo upload needs this.
+  Future<String> add({
     required String merchant,
     required int amountYen,
     required DateTime date,
@@ -17,7 +22,7 @@ abstract class ReceiptRepository {
   });
 
   Future<void> update({
-    required int id,
+    required String id,
     required String merchant,
     required int amountYen,
     required DateTime date,
@@ -26,104 +31,16 @@ abstract class ReceiptRepository {
     String? photoPath,
   });
 
-  Future<void> softDelete(int id);
+  /// Records the uploaded photo's download URL. Separate from [update] so a
+  /// background upload finishing does not have to rewrite the whole receipt
+  /// and risk clobbering an edit the user made in the meantime.
+  Future<void> setPhotoUrl({required String id, required String photoUrl});
 
-  Future<void> restore(int id);
+  Future<void> softDelete(String id);
+
+  Future<void> restore(String id);
 
   Future<void> purgeExpiredTrash({
     Duration retention = const Duration(days: 30),
   });
-}
-
-class DriftReceiptRepository implements ReceiptRepository {
-  DriftReceiptRepository(this._database);
-
-  final ReceiptsDatabase _database;
-
-  @override
-  Stream<List<Receipt>> watchAll() {
-    return (_database.select(_database.receipts)
-          ..where((r) => r.deletedAt.isNull())
-          ..orderBy([(r) => OrderingTerm.desc(r.date)]))
-        .watch();
-  }
-
-  @override
-  Stream<List<Receipt>> watchTrash() {
-    return (_database.select(_database.receipts)
-          ..where((r) => r.deletedAt.isNotNull())
-          ..orderBy([(r) => OrderingTerm.desc(r.deletedAt)]))
-        .watch();
-  }
-
-  @override
-  Future<void> add({
-    required String merchant,
-    required int amountYen,
-    required DateTime date,
-    required ReceiptCategory category,
-    String? notes,
-    String? photoPath,
-  }) {
-    return _database
-        .into(_database.receipts)
-        .insert(
-          ReceiptsCompanion.insert(
-            merchant: merchant,
-            amountYen: amountYen,
-            date: date,
-            category: category.name,
-            notes: Value(notes),
-            photoPath: Value(photoPath),
-          ),
-        );
-  }
-
-  @override
-  Future<void> update({
-    required int id,
-    required String merchant,
-    required int amountYen,
-    required DateTime date,
-    required ReceiptCategory category,
-    String? notes,
-    String? photoPath,
-  }) {
-    return (_database.update(
-      _database.receipts,
-    )..where((r) => r.id.equals(id))).write(
-      ReceiptsCompanion(
-        merchant: Value(merchant),
-        amountYen: Value(amountYen),
-        date: Value(date),
-        category: Value(category.name),
-        notes: Value(notes),
-        photoPath: Value(photoPath),
-      ),
-    );
-  }
-
-  @override
-  Future<void> softDelete(int id) {
-    return (_database.update(_database.receipts)..where((r) => r.id.equals(id)))
-        .write(ReceiptsCompanion(deletedAt: Value(DateTime.now())));
-  }
-
-  @override
-  Future<void> restore(int id) {
-    return (_database.update(_database.receipts)..where((r) => r.id.equals(id)))
-        .write(const ReceiptsCompanion(deletedAt: Value(null)));
-  }
-
-  @override
-  Future<void> purgeExpiredTrash({
-    Duration retention = const Duration(days: 30),
-  }) {
-    final cutoff = DateTime.now().subtract(retention);
-    return (_database.delete(_database.receipts)..where(
-          (r) =>
-              r.deletedAt.isNotNull() & r.deletedAt.isSmallerThanValue(cutoff),
-        ))
-        .go();
-  }
 }

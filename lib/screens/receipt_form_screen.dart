@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:receipt_ledger/data/receipt_repository.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/category_memory.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 import 'package:receipt_ledger/models/receipt_ocr_result.dart';
@@ -128,7 +128,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         : ReceiptCategory.fromName(existing.category);
     final categoryChanged = priorCategory != null && priorCategory != _category;
     final others = categoryChanged
-        ? otherReceiptsForMerchant(_allReceipts, merchant, existing?.id ?? -1)
+        ? otherReceiptsForMerchant(_allReceipts, merchant, existing?.id)
         : const <Receipt>[];
 
     var updateOthersToo = false;

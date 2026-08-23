@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/screens/receipt_list_screen.dart';
 
 import 'fake_receipt_repository.dart';
@@ -24,11 +24,12 @@ void main() {
   ) async {
     final repository = FakeReceiptRepository([
       Receipt(
-        id: 1,
+        id: '1',
         merchant: 'Trader Joe\'s',
         amountYen: 1240,
         date: DateTime(2026, 8, 10),
         category: 'groceries',
+        createdAt: DateTime(2026, 8, 10),
         notes: null,
       ),
     ]);

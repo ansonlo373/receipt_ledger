@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:receipt_ledger/data/receipt_repository.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 import 'package:receipt_ledger/models/receipt_filter.dart';
 import 'package:receipt_ledger/screens/filter_screen.dart';
@@ -21,11 +21,11 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
   String _searchQuery = '';
   ReceiptFilter _filter = const ReceiptFilter();
   bool _newestFirst = true;
-  final Set<int> _selectedIds = {};
+  final Set<String> _selectedIds = {};
 
   bool get _isSelecting => _selectedIds.isNotEmpty;
 
-  void _toggleSelected(int id) {
+  void _toggleSelected(String id) {
     setState(() {
       if (_selectedIds.contains(id)) {
         _selectedIds.remove(id);
