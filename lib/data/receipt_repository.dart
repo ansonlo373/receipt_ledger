@@ -31,16 +31,21 @@ abstract class ReceiptRepository {
     String? photoPath,
   });
 
-  /// Records the uploaded photo's download URL. Separate from [update] so a
-  /// background upload finishing does not have to rewrite the whole receipt
-  /// and risk clobbering an edit the user made in the meantime.
-  Future<void> setPhotoUrl({required String id, required String photoUrl});
+  /// Records the uploaded photo's download URL, or clears it with null when
+  /// the photo is deleted. Separate from [update] so a background upload
+  /// finishing does not have to rewrite the whole receipt and risk
+  /// clobbering an edit the user made in the meantime.
+  Future<void> setPhotoUrl({required String id, required String? photoUrl});
 
   Future<void> softDelete(String id);
 
   Future<void> restore(String id);
 
-  Future<void> purgeExpiredTrash({
+  /// Permanently removes trash older than [retention], and returns what it
+  /// removed so the caller can clean up anything hanging off those receipts
+  /// — their photos, in particular. Returning them keeps this layer unaware
+  /// of file storage, rather than reaching into it directly.
+  Future<List<Receipt>> purgeExpiredTrash({
     Duration retention = const Duration(days: 30),
   });
 }

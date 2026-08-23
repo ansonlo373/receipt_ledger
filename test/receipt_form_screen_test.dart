@@ -11,7 +11,12 @@ void main() {
       final repository = FakeReceiptRepository();
 
       await tester.pumpWidget(
-        MaterialApp(home: ReceiptFormScreen(repository: repository)),
+        MaterialApp(
+          home: ReceiptFormScreen(
+            repository: repository,
+            photoSyncService: fakePhotoSyncService(repository),
+          ),
+        ),
       );
 
       await tester.tap(find.text('Save'));

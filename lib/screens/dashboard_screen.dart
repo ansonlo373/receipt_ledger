@@ -10,6 +10,7 @@ import 'package:receipt_ledger/screens/receipt_form_screen.dart';
 import 'package:receipt_ledger/screens/receipt_list_screen.dart';
 import 'package:receipt_ledger/screens/settings_screen.dart';
 import 'package:receipt_ledger/services/photo_storage.dart';
+import 'package:receipt_ledger/services/photo_sync_service.dart';
 import 'package:receipt_ledger/services/receipt_ocr.dart';
 import 'package:receipt_ledger/theme/app_theme.dart';
 import 'package:receipt_ledger/theme/theme_controller.dart';
@@ -23,11 +24,13 @@ class DashboardScreen extends StatefulWidget {
     required this.repository,
     required this.themeController,
     required this.authService,
+    required this.photoSyncService,
   });
 
   final ReceiptRepository repository;
   final ThemeController themeController;
   final AuthService authService;
+  final PhotoSyncService photoSyncService;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -35,6 +38,25 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+
+  @override
+  void initState() {
+    super.initState();
+    _syncPendingPhotos();
+  }
+
+  /// Backs up any photo that never made it to the cloud — captured offline,
+  /// or a failed upload. Runs once per launch off the first list of receipts,
+  /// which is enough of a retry for a personal app and avoids pulling in a
+  /// background-task framework.
+  Future<void> _syncPendingPhotos() async {
+    final service = widget.photoSyncService;
+    try {
+      await service.syncPendingPhotos(await widget.repository.watchAll().first);
+    } catch (_) {
+      // Nothing on screen depends on this; next launch tries again.
+    }
+  }
 
   void _shiftMonth(int delta) {
     setState(() => _month = DateTime(_month.year, _month.month + delta));
@@ -54,6 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       MaterialPageRoute(
         builder: (context) => ReceiptFormScreen(
           repository: widget.repository,
+          photoSyncService: widget.photoSyncService,
           existing: existing,
         ),
       ),
@@ -121,6 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       MaterialPageRoute(
         builder: (context) => ReceiptFormScreen(
           repository: widget.repository,
+          photoSyncService: widget.photoSyncService,
           initialPhotoPath: savedPath,
           initialMerchant: ocrResult?.merchant,
           initialAmountYen: ocrResult?.amountYen,
@@ -135,7 +159,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _openList() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => ReceiptListScreen(repository: widget.repository),
+        builder: (context) => ReceiptListScreen(
+          repository: widget.repository,
+          photoSyncService: widget.photoSyncService,
+        ),
       ),
     );
   }
@@ -160,11 +187,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) =>
-                    SettingsScreen(
-                      themeController: widget.themeController,
-                      authService: widget.authService,
-                    ),
+                builder: (context) => SettingsScreen(
+                  themeController: widget.themeController,
+                  authService: widget.authService,
+                ),
               ),
             ),
           ),

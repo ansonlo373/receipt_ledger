@@ -8,6 +8,7 @@ import 'package:receipt_ledger/data/receipt_repository.dart';
 import 'package:receipt_ledger/screens/dashboard_screen.dart';
 import 'package:receipt_ledger/screens/sign_in_screen.dart';
 import 'package:receipt_ledger/services/auth_service.dart';
+import 'package:receipt_ledger/services/photo_sync_service.dart';
 import 'package:receipt_ledger/theme/theme_controller.dart';
 
 /// Decides between the sign-in screen and the app itself, and owns the
@@ -32,10 +33,10 @@ class _AuthGateState extends State<AuthGate> {
   /// down and recreated on every frame; replaced only when the account does.
   String? _uid;
   ReceiptRepository? _repository;
+  PhotoSyncService? _photoSyncService;
 
-  ReceiptRepository _repositoryFor(String uid) {
-    final existing = _repository;
-    if (existing != null && _uid == uid) return existing;
+  void _buildServicesFor(String uid) {
+    if (_repository != null && _uid == uid) return;
 
     final repository = FirestoreReceiptRepository(
       firestore: FirebaseFirestore.instance,
@@ -43,10 +44,30 @@ class _AuthGateState extends State<AuthGate> {
     );
     _uid = uid;
     _repository = repository;
+    final photoSync = PhotoSyncService(repository: repository, uid: uid);
+    _photoSyncService = photoSync;
     // Old trash is cleared once per sign-in, in the background — nothing on
     // screen waits for it.
-    unawaited(repository.purgeExpiredTrash());
-    return repository;
+    unawaited(_purgeTrash(repository, photoSync));
+  }
+
+  /// Clears expired trash, then the photos belonging to it — otherwise those
+  /// files would sit in storage forever with no receipt pointing at them.
+  Future<void> _purgeTrash(
+    ReceiptRepository repository,
+    PhotoSyncService photoSync,
+  ) async {
+    try {
+      final purged = await repository.purgeExpiredTrash();
+      for (final receipt in purged) {
+        await photoSync.deletePhoto(
+          receiptId: receipt.id,
+          localPath: receipt.photoPath,
+        );
+      }
+    } catch (_) {
+      // Housekeeping only; next sign-in tries again.
+    }
   }
 
   @override
@@ -66,11 +87,14 @@ class _AuthGateState extends State<AuthGate> {
         if (user == null) {
           _uid = null;
           _repository = null;
+          _photoSyncService = null;
           return SignInScreen(authService: widget.authService);
         }
 
+        _buildServicesFor(user.uid);
         return DashboardScreen(
-          repository: _repositoryFor(user.uid),
+          repository: _repository!,
+          photoSyncService: _photoSyncService!,
           themeController: widget.themeController,
           authService: widget.authService,
         );

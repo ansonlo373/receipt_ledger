@@ -12,10 +12,13 @@ ReceiptCategory? rememberedCategoryFor(
   final normalized = merchant.trim().toLowerCase();
   if (normalized.isEmpty) return null;
 
-  final matches = receipts
-      .where((receipt) => receipt.merchant.trim().toLowerCase() == normalized)
-      .toList()
-    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  final matches =
+      receipts
+          .where(
+            (receipt) => receipt.merchant.trim().toLowerCase() == normalized,
+          )
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   if (matches.isEmpty) return null;
   return ReceiptCategory.fromName(matches.first.category);

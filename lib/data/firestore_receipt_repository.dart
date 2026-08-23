@@ -53,21 +53,23 @@ class FirestoreReceiptRepository implements ReceiptRepository {
     // id is available even offline. Using add() instead would mean waiting
     // for the server to hand one back.
     final doc = _receipts.doc();
-    _write(doc.set({
-      'merchant': merchant,
-      'amountYen': amountYen,
-      'date': Timestamp.fromDate(date),
-      'category': category.name,
-      'notes': notes,
-      'photoPath': photoPath,
-      'photoUrl': null,
-      // Written as an explicit null rather than left out: Firestore's
-      // `isNull: true` filter only matches documents where the field is
-      // present and null, so omitting it would hide the receipt from
-      // watchAll() entirely.
-      'deletedAt': null,
-      'createdAt': FieldValue.serverTimestamp(),
-    }));
+    _write(
+      doc.set({
+        'merchant': merchant,
+        'amountYen': amountYen,
+        'date': Timestamp.fromDate(date),
+        'category': category.name,
+        'notes': notes,
+        'photoPath': photoPath,
+        'photoUrl': null,
+        // Written as an explicit null rather than left out: Firestore's
+        // `isNull: true` filter only matches documents where the field is
+        // present and null, so omitting it would hide the receipt from
+        // watchAll() entirely.
+        'deletedAt': null,
+        'createdAt': FieldValue.serverTimestamp(),
+      }),
+    );
     return doc.id;
   }
 
@@ -84,29 +86,31 @@ class FirestoreReceiptRepository implements ReceiptRepository {
     // Deliberately does not touch createdAt, deletedAt or photoUrl — editing
     // a receipt should not change when it was created, un-delete it, or undo
     // a photo upload that finished in the background.
-    _write(_receipts.doc(id).update({
-      'merchant': merchant,
-      'amountYen': amountYen,
-      'date': Timestamp.fromDate(date),
-      'category': category.name,
-      'notes': notes,
-      'photoPath': photoPath,
-    }));
+    _write(
+      _receipts.doc(id).update({
+        'merchant': merchant,
+        'amountYen': amountYen,
+        'date': Timestamp.fromDate(date),
+        'category': category.name,
+        'notes': notes,
+        'photoPath': photoPath,
+      }),
+    );
   }
 
   @override
   Future<void> setPhotoUrl({
     required String id,
-    required String photoUrl,
+    required String? photoUrl,
   }) async {
     _write(_receipts.doc(id).update({'photoUrl': photoUrl}));
   }
 
   @override
   Future<void> softDelete(String id) async {
-    _write(_receipts.doc(id).update({
-      'deletedAt': FieldValue.serverTimestamp(),
-    }));
+    _write(
+      _receipts.doc(id).update({'deletedAt': FieldValue.serverTimestamp()}),
+    );
   }
 
   @override
@@ -117,7 +121,7 @@ class FirestoreReceiptRepository implements ReceiptRepository {
   }
 
   @override
-  Future<void> purgeExpiredTrash({
+  Future<List<Receipt>> purgeExpiredTrash({
     Duration retention = const Duration(days: 30),
   }) async {
     final cutoff = DateTime.now().subtract(retention);
@@ -125,9 +129,11 @@ class FirestoreReceiptRepository implements ReceiptRepository {
         .where('deletedAt', isLessThan: Timestamp.fromDate(cutoff))
         .get();
 
+    final purged = [for (final doc in expired.docs) _toReceipt(doc)];
     for (final doc in expired.docs) {
       _write(doc.reference.delete());
     }
+    return purged;
   }
 
   /// Hands a write to Firestore without waiting for the server.
@@ -156,8 +162,8 @@ class FirestoreReceiptRepository implements ReceiptRepository {
       category: data['category'] as String? ?? 'other',
       // A receipt written offline has no server timestamp until it syncs, so
       // fall back to its receipt date to keep ordering sane in the meantime.
-      createdAt: _toDate(data['createdAt']) ?? _toDate(data['date']) ??
-          DateTime.now(),
+      createdAt:
+          _toDate(data['createdAt']) ?? _toDate(data['date']) ?? DateTime.now(),
       notes: data['notes'] as String?,
       deletedAt: _toDate(data['deletedAt']),
       photoPath: data['photoPath'] as String?,

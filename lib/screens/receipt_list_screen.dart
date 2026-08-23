@@ -6,12 +6,21 @@ import 'package:receipt_ledger/models/receipt_filter.dart';
 import 'package:receipt_ledger/screens/filter_screen.dart';
 import 'package:receipt_ledger/screens/receipt_form_screen.dart';
 import 'package:receipt_ledger/screens/trash_screen.dart';
+import 'package:receipt_ledger/services/photo_sync_service.dart';
 import 'package:receipt_ledger/utils/formatters.dart';
 
 class ReceiptListScreen extends StatefulWidget {
-  const ReceiptListScreen({super.key, required this.repository});
+  const ReceiptListScreen({
+    super.key,
+    required this.repository,
+    required this.photoSyncService,
+  });
 
   final ReceiptRepository repository;
+
+  /// Passed straight through to the edit form, which needs it to upload or
+  /// delete a photo when the receipt is saved.
+  final PhotoSyncService photoSyncService;
 
   @override
   State<ReceiptListScreen> createState() => _ReceiptListScreenState();
@@ -61,6 +70,7 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
       MaterialPageRoute(
         builder: (context) => ReceiptFormScreen(
           repository: widget.repository,
+          photoSyncService: widget.photoSyncService,
           existing: existing,
         ),
       ),

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -8,12 +6,15 @@ import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/category_memory.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 import 'package:receipt_ledger/models/receipt_ocr_result.dart';
+import 'package:receipt_ledger/services/photo_sync_service.dart';
 import 'package:receipt_ledger/utils/formatters.dart';
+import 'package:receipt_ledger/widgets/receipt_photo.dart';
 
 class ReceiptFormScreen extends StatefulWidget {
   const ReceiptFormScreen({
     super.key,
     required this.repository,
+    required this.photoSyncService,
     this.existing,
     this.initialPhotoPath,
     this.initialMerchant,
@@ -24,6 +25,12 @@ class ReceiptFormScreen extends StatefulWidget {
   });
 
   final ReceiptRepository repository;
+
+  /// Backs the photo up, or deletes it, after saving. Required rather than
+  /// optional: an unpassed one used to silently disable photo sync on
+  /// whichever screen forgot it, which is a bug the compiler should catch.
+  final PhotoSyncService photoSyncService;
+
   final Receipt? existing;
 
   /// A photo already captured before opening this screen (from the "Scan a
@@ -63,11 +70,17 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
   List<Receipt> _allReceipts = const [];
   late String? _photoPath;
 
+  /// The uploaded copy, held in state rather than read from the widget so
+  /// that removing a photo can clear it. Reading it from widget.existing
+  /// meant an already-uploaded photo stayed on screen after being removed.
+  late String? _photoUrl;
+
   @override
   void initState() {
     super.initState();
     final existing = widget.existing;
     _photoPath = existing?.photoPath ?? widget.initialPhotoPath;
+    _photoUrl = existing?.photoUrl;
     _merchantController = TextEditingController(
       text: existing?.merchant ?? widget.initialMerchant,
     );
@@ -138,8 +151,9 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
       updateOthersToo = choice;
     }
 
+    final String savedId;
     if (existing == null) {
-      await widget.repository.add(
+      savedId = await widget.repository.add(
         merchant: merchant,
         amountYen: amountYen,
         date: _date,
@@ -148,6 +162,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         photoPath: _photoPath,
       );
     } else {
+      savedId = existing.id;
       await widget.repository.update(
         id: existing.id,
         merchant: merchant,
@@ -158,6 +173,8 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         photoPath: _photoPath,
       );
     }
+
+    _syncPhotoChange(savedId);
 
     if (updateOthersToo) {
       for (final other in others) {
@@ -174,6 +191,33 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
     }
 
     if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Brings the stored photo in line with what was just saved, without
+  /// waiting for it. Deliberately fire and forget: the receipt is saved and
+  /// the photo already visible from the local file, so there is nothing for
+  /// the user to wait on, and an upload that fails is retried by the sweep at
+  /// next launch.
+  ///
+  /// Deletion happens here rather than when the 🗑 is tapped, so backing out
+  /// of the form without saving leaves the photo untouched.
+  void _syncPhotoChange(String receiptId) {
+    final service = widget.photoSyncService;
+
+    final previousPath = widget.existing?.photoPath;
+    final localPath = _photoPath;
+
+    if (localPath == null) {
+      if (previousPath != null || widget.existing?.photoUrl != null) {
+        service.deletePhoto(receiptId: receiptId, localPath: previousPath);
+      }
+      return;
+    }
+
+    if (widget.existing?.photoUrl != null && previousPath == localPath) {
+      return; // unchanged photo that is already backed up
+    }
+    service.uploadPhotoForReceipt(receiptId: receiptId, localPath: localPath);
   }
 
   Future<bool?> _confirmBulkCategoryUpdate(int otherCount) {
@@ -222,29 +266,12 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (_photoPath != null) ...[
+            // Shown when there is a photo anywhere — on this device or only
+            // in the cloud, as it will be on a second device.
+            if (_photoPath != null || _photoUrl != null) ...[
               Stack(
                 children: [
-                  // BoxFit.contain (not cover) so a tall, narrow receipt is
-                  // shown in full, letterboxed if needed, instead of having
-                  // its top/bottom cropped to fill a fixed box — the saved
-                  // file itself is never cropped either way.
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 400),
-                      child: Container(
-                        width: double.infinity,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        child: Image.file(
-                          File(_photoPath!),
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
+                  ReceiptPhotoView(photoPath: _photoPath, photoUrl: _photoUrl),
                   Positioned(
                     top: 4,
                     right: 4,
@@ -254,7 +281,13 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
                         icon: const Icon(Icons.delete_outline),
                         color: Colors.white,
                         tooltip: 'Remove photo',
-                        onPressed: () => setState(() => _photoPath = null),
+                        // Clears both copies from the form. Nothing is
+                        // actually deleted until Save, so backing out here
+                        // leaves the photo intact.
+                        onPressed: () => setState(() {
+                          _photoPath = null;
+                          _photoUrl = null;
+                        }),
                       ),
                     ),
                   ),
@@ -316,11 +349,10 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
                           ChoiceChip(
                             label: Text(currencyFormat.format(candidate)),
                             selected:
-                                _amountController.text ==
-                                candidate.toString(),
+                                _amountController.text == candidate.toString(),
                             onSelected: (_) => setState(
-                              () => _amountController.text = candidate
-                                  .toString(),
+                              () =>
+                                  _amountController.text = candidate.toString(),
                             ),
                           ),
                       ],
@@ -357,10 +389,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
             ),
             if (widget.existing == null &&
                 !_categoryManuallySet &&
-                rememberedCategoryFor(
-                      _allReceipts,
-                      _merchantController.text,
-                    ) ==
+                rememberedCategoryFor(_allReceipts, _merchantController.text) ==
                     _category &&
                 _merchantController.text.trim().isNotEmpty)
               Padding(

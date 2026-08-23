@@ -33,10 +33,9 @@ String reconstructRowsAsText(List<OcrLine> lines) {
 
   return rows
       .map(
-        (row) =>
-            (row..sort((a, b) => a.left.compareTo(b.left)))
-                .map((line) => line.text)
-                .join(' '),
+        (row) => (row..sort((a, b) => a.left.compareTo(b.left)))
+            .map((line) => line.text)
+            .join(' '),
       )
       .join('\n');
 }

@@ -32,24 +32,27 @@ void main() {
     expect(filter.matches(receipt), isTrue);
   });
 
-  test('a category filter only matches receipts in one of the selected categories', () {
-    const filter = ReceiptFilter(
-      categories: {ReceiptCategory.groceries, ReceiptCategory.dining},
-    );
-    final groceries = _receipt(
-      merchant: 'A',
-      date: DateTime(2026, 1, 1),
-      category: 'groceries',
-    );
-    final transport = _receipt(
-      merchant: 'B',
-      date: DateTime(2026, 1, 1),
-      category: 'transport',
-    );
+  test(
+    'a category filter only matches receipts in one of the selected categories',
+    () {
+      const filter = ReceiptFilter(
+        categories: {ReceiptCategory.groceries, ReceiptCategory.dining},
+      );
+      final groceries = _receipt(
+        merchant: 'A',
+        date: DateTime(2026, 1, 1),
+        category: 'groceries',
+      );
+      final transport = _receipt(
+        merchant: 'B',
+        date: DateTime(2026, 1, 1),
+        category: 'transport',
+      );
 
-    expect(filter.matches(groceries), isTrue);
-    expect(filter.matches(transport), isFalse);
-  });
+      expect(filter.matches(groceries), isTrue);
+      expect(filter.matches(transport), isFalse);
+    },
+  );
 
   test('a date range filter matches on the boundary dates (inclusive) but not outside them', () {
     final filter = ReceiptFilter(

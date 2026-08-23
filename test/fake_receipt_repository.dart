@@ -1,8 +1,23 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:receipt_ledger/data/receipt_repository.dart';
 import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
+import 'package:receipt_ledger/services/photo_sync_service.dart';
+
+/// A [PhotoSyncService] that touches neither Firebase nor the filesystem,
+/// for widget tests that only care about the screen, not the syncing.
+PhotoSyncService fakePhotoSyncService(ReceiptRepository repository) {
+  return PhotoSyncService(
+    repository: repository,
+    uid: 'test-user',
+    uploadBytes: (storagePath, bytes) async => 'https://example/$storagePath',
+    readBytes: (path) async => Uint8List.fromList(const [1, 2, 3]),
+    deleteRemote: (storagePath) async {},
+    deleteLocal: (path) async {},
+  );
+}
 
 /// In-memory stand-in for [ReceiptRepository] used in widget tests, so tests
 /// don't need Firebase running.
@@ -93,7 +108,7 @@ class FakeReceiptRepository implements ReceiptRepository {
   @override
   Future<void> setPhotoUrl({
     required String id,
-    required String photoUrl,
+    required String? photoUrl,
   }) async {
     final index = _receipts.indexWhere((r) => r.id == id);
     final r = _receipts[index];
@@ -150,13 +165,16 @@ class FakeReceiptRepository implements ReceiptRepository {
   }
 
   @override
-  Future<void> purgeExpiredTrash({
+  Future<List<Receipt>> purgeExpiredTrash({
     Duration retention = const Duration(days: 30),
   }) async {
     final cutoff = DateTime.now().subtract(retention);
-    _receipts.removeWhere(
-      (r) => r.deletedAt != null && r.deletedAt!.isBefore(cutoff),
-    );
+    bool expired(Receipt r) =>
+        r.deletedAt != null && r.deletedAt!.isBefore(cutoff);
+
+    final purged = _receipts.where(expired).toList();
+    _receipts.removeWhere(expired);
     _notify();
+    return purged;
   }
 }

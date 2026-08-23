@@ -12,7 +12,12 @@ void main() {
     final repository = FakeReceiptRepository();
 
     await tester.pumpWidget(
-      MaterialApp(home: ReceiptListScreen(repository: repository)),
+      MaterialApp(
+        home: ReceiptListScreen(
+          repository: repository,
+          photoSyncService: fakePhotoSyncService(repository),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -35,7 +40,12 @@ void main() {
     ]);
 
     await tester.pumpWidget(
-      MaterialApp(home: ReceiptListScreen(repository: repository)),
+      MaterialApp(
+        home: ReceiptListScreen(
+          repository: repository,
+          photoSyncService: fakePhotoSyncService(repository),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
