@@ -6,17 +6,14 @@ Built for Android, in Japanese yen (whole yen, no decimal subunit).
 
 ## Screenshots
 
-<!-- Replace these with real screenshots. Suggested set:
-     1. Dashboard — monthly total, trend vs last month, category bars
-     2. Scan flow — the document scanner's crop step
-     3. Confirm screen — OCR-filled fields with the source badge visible
-     4. Category breakdown — donut chart
-     5. Trends — day/month/year bar chart
-     Keep them ~300px wide so they sit side by side on GitHub. -->
-
-| Dashboard | Scan & confirm | Breakdown |
-|---|---|---|
-| _screenshot_ | _screenshot_ | _screenshot_ |
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/dashboard.jpeg" width="200" alt="Dashboard"><br>Dashboard</td>
+    <td align="center"><img src="docs/screenshots/scan.jpeg" width="200" alt="Scan a receipt"><br>Scan</td>
+    <td align="center"><img src="docs/screenshots/confirm.jpeg" width="200" alt="Confirm &amp; on-device OCR"><br>Confirm &amp; OCR</td>
+    <td align="center"><img src="docs/screenshots/breakdown.jpeg" width="200" alt="Category breakdown &amp; trends"><br>Breakdown &amp; trends</td>
+  </tr>
+</table>
 
 ## What it does
 
