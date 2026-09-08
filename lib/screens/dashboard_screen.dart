@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_document_scanner/google_mlkit_document_scanner.dart';
 import 'package:receipt_ledger/data/receipt_repository.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/month_summary.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
+import 'package:receipt_ledger/models/receipt_ocr_result.dart';
 import 'package:receipt_ledger/screens/category_screen.dart';
 import 'package:receipt_ledger/screens/receipt_form_screen.dart';
 import 'package:receipt_ledger/screens/receipt_list_screen.dart';
 import 'package:receipt_ledger/screens/settings_screen.dart';
 import 'package:receipt_ledger/services/photo_storage.dart';
+import 'package:receipt_ledger/services/photo_sync_service.dart';
+import 'package:receipt_ledger/services/receipt_ocr.dart';
 import 'package:receipt_ledger/theme/app_theme.dart';
 import 'package:receipt_ledger/theme/theme_controller.dart';
 import 'package:receipt_ledger/utils/category_colors.dart';
+import 'package:receipt_ledger/services/auth_service.dart';
 import 'package:receipt_ledger/utils/formatters.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -19,10 +23,14 @@ class DashboardScreen extends StatefulWidget {
     super.key,
     required this.repository,
     required this.themeController,
+    required this.authService,
+    required this.photoSyncService,
   });
 
   final ReceiptRepository repository;
   final ThemeController themeController;
+  final AuthService authService;
+  final PhotoSyncService photoSyncService;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -30,6 +38,25 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+
+  @override
+  void initState() {
+    super.initState();
+    _syncPendingPhotos();
+  }
+
+  /// Backs up any photo that never made it to the cloud — captured offline,
+  /// or a failed upload. Runs once per launch off the first list of receipts,
+  /// which is enough of a retry for a personal app and avoids pulling in a
+  /// background-task framework.
+  Future<void> _syncPendingPhotos() async {
+    final service = widget.photoSyncService;
+    try {
+      await service.syncPendingPhotos(await widget.repository.watchAll().first);
+    } catch (_) {
+      // Nothing on screen depends on this; next launch tries again.
+    }
+  }
 
   void _shiftMonth(int delta) {
     setState(() => _month = DateTime(_month.year, _month.month + delta));
@@ -49,6 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       MaterialPageRoute(
         builder: (context) => ReceiptFormScreen(
           repository: widget.repository,
+          photoSyncService: widget.photoSyncService,
           existing: existing,
         ),
       ),
@@ -86,11 +114,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final savedPath = await savePhotoLocally(images.first);
     if (!mounted) return;
 
+    // Text recognition can take a moment on-device; show a lightweight,
+    // non-dismissible progress indicator rather than leaving the screen
+    // looking frozen.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    ReceiptOcrResult? ocrResult;
+    try {
+      ocrResult = await recognizeReceipt(savedPath);
+    } catch (_) {
+      // OCR is a convenience, not a requirement — fall through to a blank
+      // (but still photo-attached) form rather than blocking the flow.
+      ocrResult = null;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss the progress dialog
+
+    final foundAnything =
+        ocrResult != null &&
+        (ocrResult.merchant != null ||
+            ocrResult.amountYen != null ||
+            ocrResult.date != null);
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ReceiptFormScreen(
           repository: widget.repository,
+          photoSyncService: widget.photoSyncService,
           initialPhotoPath: savedPath,
+          initialMerchant: ocrResult?.merchant,
+          initialAmountYen: ocrResult?.amountYen,
+          initialAmountCandidates: ocrResult?.amountCandidates ?? const [],
+          initialDate: ocrResult?.date,
+          ocrSource: foundAnything ? ocrResult?.source : null,
         ),
       ),
     );
@@ -99,7 +159,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _openList() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => ReceiptListScreen(repository: widget.repository),
+        builder: (context) => ReceiptListScreen(
+          repository: widget.repository,
+          photoSyncService: widget.photoSyncService,
+        ),
       ),
     );
   }
@@ -124,8 +187,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) =>
-                    SettingsScreen(themeController: widget.themeController),
+                builder: (context) => SettingsScreen(
+                  themeController: widget.themeController,
+                  authService: widget.authService,
+                ),
               ),
             ),
           ),

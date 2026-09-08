@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Blocks commits that stage credential files (.env, private keys, service
+# account JSON) or obvious secret patterns. Installed via:
+#   git config core.hooksPath .githooks
+set -euo pipefail
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+blocked=0
+
+# 1. Filenames that should never be committed, regardless of content.
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  base=$(basename "$file")
+  case "$base" in
+    .env.example|.env.sample|.env.template) continue ;;
+    .env|.env.*|*.env)
+      echo "BLOCKED: $file looks like a real .env file (holds real secrets)."
+      blocked=1
+      ;;
+    *.pem|*.key|*.p12|*.pfx)
+      echo "BLOCKED: $file looks like a private key or certificate file."
+      blocked=1
+      ;;
+    *serviceAccount*.json|*-firebase-adminsdk-*.json)
+      echo "BLOCKED: $file looks like a Firebase/GCP service account key."
+      blocked=1
+      ;;
+  esac
+done <<<"$staged_files"
+
+# 2. Content scan for high-confidence secret markers. Skips the Firebase
+# client config files that are meant to be committed (project id + a public
+# client API key, not secrets) so they don't false-positive.
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  base=$(basename "$file")
+  case "$base" in
+    firebase_options.dart|google-services.json) continue ;;
+  esac
+  content=$(git show ":$file" 2>/dev/null || true)
+  [ -z "$content" ] && continue
+  if grep -Eq -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}' <<<"$content"; then
+    echo "BLOCKED: $file contains what looks like a private key or AWS access key."
+    blocked=1
+  fi
+done <<<"$staged_files"
+
+if [ "$blocked" -eq 1 ]; then
+  echo ""
+  echo "Commit aborted. Unstage the file(s) above (git restore --staged <file>)"
+  echo "and make sure they're in .gitignore instead of being committed."
+  exit 1
+fi
+
+exit 0

@@ -1,28 +1,60 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:receipt_ledger/data/receipt_repository.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/category_memory.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
+import 'package:receipt_ledger/models/receipt_ocr_result.dart';
+import 'package:receipt_ledger/services/gemini_rescan_service.dart';
+import 'package:receipt_ledger/services/photo_sync_service.dart';
+import 'package:receipt_ledger/utils/formatters.dart';
+import 'package:receipt_ledger/widgets/receipt_photo.dart';
 
 class ReceiptFormScreen extends StatefulWidget {
   const ReceiptFormScreen({
     super.key,
     required this.repository,
+    required this.photoSyncService,
     this.existing,
     this.initialPhotoPath,
+    this.initialMerchant,
+    this.initialAmountYen,
+    this.initialAmountCandidates = const [],
+    this.initialDate,
+    this.ocrSource,
   });
 
   final ReceiptRepository repository;
+
+  /// Backs the photo up, or deletes it, after saving. Required rather than
+  /// optional: an unpassed one used to silently disable photo sync on
+  /// whichever screen forgot it, which is a bug the compiler should catch.
+  final PhotoSyncService photoSyncService;
+
   final Receipt? existing;
 
   /// A photo already captured before opening this screen (from the "Scan a
   /// receipt" flow). Ignored when [existing] is set — an edited receipt's
   /// photo comes from its own record instead.
   final String? initialPhotoPath;
+
+  /// Fields guessed from the photo via OCR, all ignored when [existing] is
+  /// set. Always editable — OCR is a starting point, not a commitment.
+  final String? initialMerchant;
+  final int? initialAmountYen;
+
+  /// Every plausible ¥-marked amount OCR found, most-likely first. When this
+  /// has more than one entry the amount is genuinely ambiguous — shown as
+  /// quick-pick chips instead of trusting [initialAmountYen] alone.
+  final List<int> initialAmountCandidates;
+
+  final DateTime? initialDate;
+
+  /// Which OCR pass produced the initial* fields, shown as a small badge so
+  /// the user knows the data was guessed and should be double-checked. Null
+  /// when there's nothing to badge (manual entry, or OCR found nothing).
+  final OcrSource? ocrSource;
 
   @override
   State<ReceiptFormScreen> createState() => _ReceiptFormScreenState();
@@ -39,17 +71,36 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
   List<Receipt> _allReceipts = const [];
   late String? _photoPath;
 
+  /// The uploaded copy, held in state rather than read from the widget so
+  /// that removing a photo can clear it. Reading it from widget.existing
+  /// meant an already-uploaded photo stayed on screen after being removed.
+  late String? _photoUrl;
+
+  /// Both start from the widget but live in state, because a rescan replaces
+  /// them after the screen has already been built.
+  late OcrSource? _ocrSource;
+  late List<int> _amountCandidates;
+
+  bool _rescanning = false;
+
   @override
   void initState() {
     super.initState();
     final existing = widget.existing;
     _photoPath = existing?.photoPath ?? widget.initialPhotoPath;
-    _merchantController = TextEditingController(text: existing?.merchant);
+    _photoUrl = existing?.photoUrl;
+    _ocrSource = widget.ocrSource;
+    _amountCandidates = widget.initialAmountCandidates;
+    _merchantController = TextEditingController(
+      text: existing?.merchant ?? widget.initialMerchant,
+    );
     _amountController = TextEditingController(
-      text: existing == null ? '' : existing.amountYen.toString(),
+      text: existing != null
+          ? existing.amountYen.toString()
+          : widget.initialAmountYen?.toString() ?? '',
     );
     _notesController = TextEditingController(text: existing?.notes);
-    _date = existing?.date ?? DateTime.now();
+    _date = existing?.date ?? widget.initialDate ?? DateTime.now();
     _category = existing == null
         ? ReceiptCategory.other
         : ReceiptCategory.fromName(existing.category);
@@ -100,7 +151,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         : ReceiptCategory.fromName(existing.category);
     final categoryChanged = priorCategory != null && priorCategory != _category;
     final others = categoryChanged
-        ? otherReceiptsForMerchant(_allReceipts, merchant, existing?.id ?? -1)
+        ? otherReceiptsForMerchant(_allReceipts, merchant, existing?.id)
         : const <Receipt>[];
 
     var updateOthersToo = false;
@@ -110,8 +161,9 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
       updateOthersToo = choice;
     }
 
+    final String savedId;
     if (existing == null) {
-      await widget.repository.add(
+      savedId = await widget.repository.add(
         merchant: merchant,
         amountYen: amountYen,
         date: _date,
@@ -120,6 +172,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         photoPath: _photoPath,
       );
     } else {
+      savedId = existing.id;
       await widget.repository.update(
         id: existing.id,
         merchant: merchant,
@@ -130,6 +183,8 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         photoPath: _photoPath,
       );
     }
+
+    _syncPhotoChange(savedId);
 
     if (updateOthersToo) {
       for (final other in others) {
@@ -146,6 +201,76 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
     }
 
     if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Brings the stored photo in line with what was just saved, without
+  /// waiting for it. Deliberately fire and forget: the receipt is saved and
+  /// the photo already visible from the local file, so there is nothing for
+  /// the user to wait on, and an upload that fails is retried by the sweep at
+  /// next launch.
+  ///
+  /// Deletion happens here rather than when the 🗑 is tapped, so backing out
+  /// of the form without saving leaves the photo untouched.
+  void _syncPhotoChange(String receiptId) {
+    final service = widget.photoSyncService;
+
+    final previousPath = widget.existing?.photoPath;
+    final localPath = _photoPath;
+
+    if (localPath == null) {
+      if (previousPath != null || widget.existing?.photoUrl != null) {
+        service.deletePhoto(receiptId: receiptId, localPath: previousPath);
+      }
+      return;
+    }
+
+    if (widget.existing?.photoUrl != null && previousPath == localPath) {
+      return; // unchanged photo that is already backed up
+    }
+    service.uploadPhotoForReceipt(receiptId: receiptId, localPath: localPath);
+  }
+
+  /// Asks Gemini to read the photo again, for when the on-device pass got it
+  /// wrong. Only ever overwrites fields it actually found, and leaves
+  /// everything untouched on failure — a rescan is an offer of help, not
+  /// something that should cost the user work they already did.
+  Future<void> _rescanWithAi() async {
+    final photoPath = _photoPath;
+    if (photoPath == null || _rescanning) return;
+
+    setState(() => _rescanning = true);
+    try {
+      final result = await rescanWithGemini(photoPath);
+      if (!mounted) return;
+
+      setState(() {
+        if (result.merchant != null) _merchantController.text = result.merchant!;
+        if (result.amountYen != null) {
+          _amountController.text = result.amountYen.toString();
+        }
+        if (result.date != null) _date = result.date!;
+        _ocrSource = result.source;
+        // Gemini returns one considered answer rather than a shortlist, so
+        // the on-device guesses would only be noise next to it.
+        _amountCandidates = const [];
+      });
+
+      if (result.merchant == null &&
+          result.amountYen == null &&
+          result.date == null) {
+        _showMessage('Could not read anything from this photo.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Could not reach the scanner. Check your connection.');
+      }
+    } finally {
+      if (mounted) setState(() => _rescanning = false);
+    }
+  }
+
+  void _showMessage(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   Future<bool?> _confirmBulkCategoryUpdate(int otherCount) {
@@ -194,29 +319,12 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (_photoPath != null) ...[
+            // Shown when there is a photo anywhere — on this device or only
+            // in the cloud, as it will be on a second device.
+            if (_photoPath != null || _photoUrl != null) ...[
               Stack(
                 children: [
-                  // BoxFit.contain (not cover) so a tall, narrow receipt is
-                  // shown in full, letterboxed if needed, instead of having
-                  // its top/bottom cropped to fill a fixed box — the saved
-                  // file itself is never cropped either way.
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 400),
-                      child: Container(
-                        width: double.infinity,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        child: Image.file(
-                          File(_photoPath!),
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
+                  ReceiptPhotoView(photoPath: _photoPath, photoUrl: _photoUrl),
                   Positioned(
                     top: 4,
                     right: 4,
@@ -226,12 +334,49 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
                         icon: const Icon(Icons.delete_outline),
                         color: Colors.white,
                         tooltip: 'Remove photo',
-                        onPressed: () => setState(() => _photoPath = null),
+                        // Clears both copies from the form. Nothing is
+                        // actually deleted until Save, so backing out here
+                        // leaves the photo intact.
+                        onPressed: () => setState(() {
+                          _photoPath = null;
+                          _photoUrl = null;
+                        }),
                       ),
                     ),
                   ),
                 ],
               ),
+              if (_ocrSource != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '${_ocrSource!.emoji} ${_ocrSource!.label} — check the '
+                    'details below',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              // Offered whenever there is a photo to re-read, including on a
+              // saved receipt — wanting a second opinion on an old one is no
+              // less valid than on a fresh scan.
+              if (_photoPath != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _rescanning ? null : _rescanWithAi,
+                    icon: _rescanning
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome, size: 18),
+                    label: Text(
+                      _rescanning ? 'Reading…' : 'Rescan with AI',
+                    ),
+                  ),
+                ),
               const SizedBox(height: 16),
             ],
             TextFormField(
@@ -257,6 +402,38 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
                 return null;
               },
             ),
+            if (widget.existing == null &&
+                _amountCandidates.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'OCR found more than one possible amount — pick one:',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final candidate in _amountCandidates)
+                          ChoiceChip(
+                            label: Text(currencyFormat.format(candidate)),
+                            selected:
+                                _amountController.text == candidate.toString(),
+                            onSelected: (_) => setState(
+                              () =>
+                                  _amountController.text = candidate.toString(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Date'),
@@ -286,10 +463,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
             ),
             if (widget.existing == null &&
                 !_categoryManuallySet &&
-                rememberedCategoryFor(
-                      _allReceipts,
-                      _merchantController.text,
-                    ) ==
+                rememberedCategoryFor(_allReceipts, _merchantController.text) ==
                     _category &&
                 _merchantController.text.trim().isNotEmpty)
               Padding(

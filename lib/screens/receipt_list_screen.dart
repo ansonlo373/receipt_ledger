@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:receipt_ledger/data/receipt_repository.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 import 'package:receipt_ledger/models/receipt_filter.dart';
 import 'package:receipt_ledger/screens/filter_screen.dart';
 import 'package:receipt_ledger/screens/receipt_form_screen.dart';
 import 'package:receipt_ledger/screens/trash_screen.dart';
+import 'package:receipt_ledger/services/photo_sync_service.dart';
 import 'package:receipt_ledger/utils/formatters.dart';
 
 class ReceiptListScreen extends StatefulWidget {
-  const ReceiptListScreen({super.key, required this.repository});
+  const ReceiptListScreen({
+    super.key,
+    required this.repository,
+    required this.photoSyncService,
+  });
 
   final ReceiptRepository repository;
+
+  /// Passed straight through to the edit form, which needs it to upload or
+  /// delete a photo when the receipt is saved.
+  final PhotoSyncService photoSyncService;
 
   @override
   State<ReceiptListScreen> createState() => _ReceiptListScreenState();
@@ -21,11 +30,11 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
   String _searchQuery = '';
   ReceiptFilter _filter = const ReceiptFilter();
   bool _newestFirst = true;
-  final Set<int> _selectedIds = {};
+  final Set<String> _selectedIds = {};
 
   bool get _isSelecting => _selectedIds.isNotEmpty;
 
-  void _toggleSelected(int id) {
+  void _toggleSelected(String id) {
     setState(() {
       if (_selectedIds.contains(id)) {
         _selectedIds.remove(id);
@@ -61,6 +70,7 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
       MaterialPageRoute(
         builder: (context) => ReceiptFormScreen(
           repository: widget.repository,
+          photoSyncService: widget.photoSyncService,
           existing: existing,
         ),
       ),

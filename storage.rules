@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// Receipt photos are private to the account that uploaded them, mirroring
+// the Firestore rules: the only reachable path is your own, and only while
+// signed in.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/receipt_photos/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

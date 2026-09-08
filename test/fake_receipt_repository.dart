@@ -1,12 +1,26 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:receipt_ledger/data/receipt_repository.dart';
-import 'package:receipt_ledger/data/receipts_database.dart';
+import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
+import 'package:receipt_ledger/services/photo_sync_service.dart';
+
+/// A [PhotoSyncService] that touches neither Firebase nor the filesystem,
+/// for widget tests that only care about the screen, not the syncing.
+PhotoSyncService fakePhotoSyncService(ReceiptRepository repository) {
+  return PhotoSyncService(
+    repository: repository,
+    uid: 'test-user',
+    uploadBytes: (storagePath, bytes) async => 'https://example/$storagePath',
+    readBytes: (path) async => Uint8List.fromList(const [1, 2, 3]),
+    deleteRemote: (storagePath) async {},
+    deleteLocal: (path) async {},
+  );
+}
 
 /// In-memory stand-in for [ReceiptRepository] used in widget tests, so tests
-/// don't need a real SQLite connection (unavailable under `flutter test` on
-/// Windows without a bundled native library).
+/// don't need Firebase running.
 class FakeReceiptRepository implements ReceiptRepository {
   FakeReceiptRepository([List<Receipt> initial = const []])
     : _receipts = List.of(initial);
@@ -14,6 +28,10 @@ class FakeReceiptRepository implements ReceiptRepository {
   final List<Receipt> _receipts;
   final _changes = StreamController<List<Receipt>>.broadcast();
   int _nextId = 1;
+
+  /// Advances per add so receipts saved in sequence sort by creation the way
+  /// they would in the real repository, without depending on wall-clock time.
+  DateTime _nextCreatedAt = DateTime(2026, 1, 1);
 
   void _notify() => _changes.add(List.unmodifiable(_receipts));
 
@@ -28,15 +46,13 @@ class FakeReceiptRepository implements ReceiptRepository {
   }
 
   @override
-  Stream<List<Receipt>> watchAll() =>
-      _watchWhere((r) => r.deletedAt == null);
+  Stream<List<Receipt>> watchAll() => _watchWhere((r) => r.deletedAt == null);
 
   @override
-  Stream<List<Receipt>> watchTrash() =>
-      _watchWhere((r) => r.deletedAt != null);
+  Stream<List<Receipt>> watchTrash() => _watchWhere((r) => r.deletedAt != null);
 
   @override
-  Future<void> add({
+  Future<String> add({
     required String merchant,
     required int amountYen,
     required DateTime date,
@@ -44,23 +60,27 @@ class FakeReceiptRepository implements ReceiptRepository {
     String? notes,
     String? photoPath,
   }) async {
+    final id = (_nextId++).toString();
+    _nextCreatedAt = _nextCreatedAt.add(const Duration(minutes: 1));
     _receipts.add(
       Receipt(
-        id: _nextId++,
+        id: id,
         merchant: merchant,
         amountYen: amountYen,
         date: date,
         category: category.name,
+        createdAt: _nextCreatedAt,
         notes: notes,
         photoPath: photoPath,
       ),
     );
     _notify();
+    return id;
   }
 
   @override
   Future<void> update({
-    required int id,
+    required String id,
     required String merchant,
     required int amountYen,
     required DateTime date,
@@ -69,21 +89,27 @@ class FakeReceiptRepository implements ReceiptRepository {
     String? photoPath,
   }) async {
     final index = _receipts.indexWhere((r) => r.id == id);
+    final existing = _receipts[index];
     _receipts[index] = Receipt(
       id: id,
       merchant: merchant,
       amountYen: amountYen,
       date: date,
       category: category.name,
+      createdAt: existing.createdAt,
       notes: notes,
       photoPath: photoPath,
-      deletedAt: _receipts[index].deletedAt,
+      photoUrl: existing.photoUrl,
+      deletedAt: existing.deletedAt,
     );
     _notify();
   }
 
   @override
-  Future<void> softDelete(int id) async {
+  Future<void> setPhotoUrl({
+    required String id,
+    required String? photoUrl,
+  }) async {
     final index = _receipts.indexWhere((r) => r.id == id);
     final r = _receipts[index];
     _receipts[index] = Receipt(
@@ -92,15 +118,36 @@ class FakeReceiptRepository implements ReceiptRepository {
       amountYen: r.amountYen,
       date: r.date,
       category: r.category,
+      createdAt: r.createdAt,
       notes: r.notes,
       photoPath: r.photoPath,
+      photoUrl: photoUrl,
+      deletedAt: r.deletedAt,
+    );
+    _notify();
+  }
+
+  @override
+  Future<void> softDelete(String id) async {
+    final index = _receipts.indexWhere((r) => r.id == id);
+    final r = _receipts[index];
+    _receipts[index] = Receipt(
+      id: r.id,
+      merchant: r.merchant,
+      amountYen: r.amountYen,
+      date: r.date,
+      category: r.category,
+      createdAt: r.createdAt,
+      notes: r.notes,
+      photoPath: r.photoPath,
+      photoUrl: r.photoUrl,
       deletedAt: DateTime.now(),
     );
     _notify();
   }
 
   @override
-  Future<void> restore(int id) async {
+  Future<void> restore(String id) async {
     final index = _receipts.indexWhere((r) => r.id == id);
     final r = _receipts[index];
     _receipts[index] = Receipt(
@@ -109,20 +156,25 @@ class FakeReceiptRepository implements ReceiptRepository {
       amountYen: r.amountYen,
       date: r.date,
       category: r.category,
+      createdAt: r.createdAt,
       notes: r.notes,
       photoPath: r.photoPath,
+      photoUrl: r.photoUrl,
     );
     _notify();
   }
 
   @override
-  Future<void> purgeExpiredTrash({
+  Future<List<Receipt>> purgeExpiredTrash({
     Duration retention = const Duration(days: 30),
   }) async {
     final cutoff = DateTime.now().subtract(retention);
-    _receipts.removeWhere(
-      (r) => r.deletedAt != null && r.deletedAt!.isBefore(cutoff),
-    );
+    bool expired(Receipt r) =>
+        r.deletedAt != null && r.deletedAt!.isBefore(cutoff);
+
+    final purged = _receipts.where(expired).toList();
+    _receipts.removeWhere(expired);
     _notify();
+    return purged;
   }
 }
