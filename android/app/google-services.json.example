@@ -1,0 +1,30 @@
+{
+  "_comment": "TEMPLATE — do not use as-is. This is a 'bring your own Firebase' app. Do NOT edit this by hand. Run `flutterfire configure --platforms=android` (or download google-services.json from your own Firebase project's Android app settings) to generate the real android/app/google-services.json, which is gitignored so the app runs on YOUR Firebase and YOUR quota.",
+  "project_info": {
+    "project_number": "YOUR_PROJECT_NUMBER",
+    "project_id": "your-project-id",
+    "storage_bucket": "your-project-id.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "YOUR_MOBILESDK_APP_ID",
+        "android_client_info": {
+          "package_name": "com.ledgerapp.receipt_ledger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "YOUR_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

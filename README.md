@@ -49,14 +49,22 @@ flutter pub get
 flutter run
 ```
 
-That much needs a Firebase project of your own, since the committed config points at mine:
+This is a **bring-your-own-Firebase** app: no backend config is committed, so you run entirely on **your own** Firebase project and **your own** Gemini key — you consume your own quota, never anyone else's. `lib/firebase_options.dart` and `android/app/google-services.json` are gitignored; see the `*.example` files next to them for the shape. Set it up once:
 
-1. Create a Firebase project, then `dart pub global activate flutterfire_cli` and `flutterfire configure --platforms=android`. This regenerates `lib/firebase_options.dart` and `android/app/google-services.json`.
+1. Create **your own** Firebase project, then `dart pub global activate flutterfire_cli` and `flutterfire configure --platforms=android`. This generates `lib/firebase_options.dart` and `android/app/google-services.json` with your project's values.
 2. In the Firebase console, enable **Authentication** (Email/Password and Google), **Firestore**, and **Storage**. For Google Sign-In, add your debug SHA-1 fingerprint (`cd android && ./gradlew signingReport`).
 3. Deploy the security rules and the index:
    ```bash
    firebase deploy --only firestore:rules,firestore:indexes,storage
    ```
+
+### Locking down your deployment
+
+The security rules already restrict every user to their own `/users/{uid}` subtree, so nobody can read another account's data. But by default **anyone can create an account** on your project, and each signed-in user's uploads bill *your* Blaze plan. If your project is personal or shared with a known group, tighten it:
+
+- **Disable public sign-up** — Firebase console → Authentication → Settings → *User actions* → turn off **Enable create (sign-up)**. Existing accounts keep working; nobody new can register.
+- **Enable App Check** (Play Integrity) and enforce it on Firestore, Storage, and the Cloud Function, so only requests from your genuine app binary are accepted.
+- **Restrict your Android API key** in Google Cloud Console (package name + SHA-1) and keep a **budget alert** — Blaze has no automatic spending cap.
 
 ### The AI rescan (optional)
 
