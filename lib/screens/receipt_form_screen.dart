@@ -6,6 +6,7 @@ import 'package:receipt_ledger/models/receipt.dart';
 import 'package:receipt_ledger/models/category_memory.dart';
 import 'package:receipt_ledger/models/receipt_category.dart';
 import 'package:receipt_ledger/models/receipt_ocr_result.dart';
+import 'package:receipt_ledger/services/gemini_rescan_service.dart';
 import 'package:receipt_ledger/services/photo_sync_service.dart';
 import 'package:receipt_ledger/utils/formatters.dart';
 import 'package:receipt_ledger/widgets/receipt_photo.dart';
@@ -75,12 +76,21 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
   /// meant an already-uploaded photo stayed on screen after being removed.
   late String? _photoUrl;
 
+  /// Both start from the widget but live in state, because a rescan replaces
+  /// them after the screen has already been built.
+  late OcrSource? _ocrSource;
+  late List<int> _amountCandidates;
+
+  bool _rescanning = false;
+
   @override
   void initState() {
     super.initState();
     final existing = widget.existing;
     _photoPath = existing?.photoPath ?? widget.initialPhotoPath;
     _photoUrl = existing?.photoUrl;
+    _ocrSource = widget.ocrSource;
+    _amountCandidates = widget.initialAmountCandidates;
     _merchantController = TextEditingController(
       text: existing?.merchant ?? widget.initialMerchant,
     );
@@ -220,6 +230,49 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
     service.uploadPhotoForReceipt(receiptId: receiptId, localPath: localPath);
   }
 
+  /// Asks Gemini to read the photo again, for when the on-device pass got it
+  /// wrong. Only ever overwrites fields it actually found, and leaves
+  /// everything untouched on failure — a rescan is an offer of help, not
+  /// something that should cost the user work they already did.
+  Future<void> _rescanWithAi() async {
+    final photoPath = _photoPath;
+    if (photoPath == null || _rescanning) return;
+
+    setState(() => _rescanning = true);
+    try {
+      final result = await rescanWithGemini(photoPath);
+      if (!mounted) return;
+
+      setState(() {
+        if (result.merchant != null) _merchantController.text = result.merchant!;
+        if (result.amountYen != null) {
+          _amountController.text = result.amountYen.toString();
+        }
+        if (result.date != null) _date = result.date!;
+        _ocrSource = result.source;
+        // Gemini returns one considered answer rather than a shortlist, so
+        // the on-device guesses would only be noise next to it.
+        _amountCandidates = const [];
+      });
+
+      if (result.merchant == null &&
+          result.amountYen == null &&
+          result.date == null) {
+        _showMessage('Could not read anything from this photo.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Could not reach the scanner. Check your connection.');
+      }
+    } finally {
+      if (mounted) setState(() => _rescanning = false);
+    }
+  }
+
+  void _showMessage(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
   Future<bool?> _confirmBulkCategoryUpdate(int otherCount) {
     final merchant = _merchantController.text.trim();
     return showDialog<bool>(
@@ -293,13 +346,34 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
                   ),
                 ],
               ),
-              if (widget.existing == null && widget.ocrSource != null)
+              if (_ocrSource != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    '📱 ${widget.ocrSource!.label} — check the details below',
+                    '${_ocrSource!.emoji} ${_ocrSource!.label} — check the '
+                    'details below',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              // Offered whenever there is a photo to re-read, including on a
+              // saved receipt — wanting a second opinion on an old one is no
+              // less valid than on a fresh scan.
+              if (_photoPath != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _rescanning ? null : _rescanWithAi,
+                    icon: _rescanning
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome, size: 18),
+                    label: Text(
+                      _rescanning ? 'Reading…' : 'Rescan with AI',
                     ),
                   ),
                 ),
@@ -329,7 +403,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
               },
             ),
             if (widget.existing == null &&
-                widget.initialAmountCandidates.length > 1)
+                _amountCandidates.length > 1)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Column(
@@ -345,7 +419,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
                     Wrap(
                       spacing: 8,
                       children: [
-                        for (final candidate in widget.initialAmountCandidates)
+                        for (final candidate in _amountCandidates)
                           ChoiceChip(
                             label: Text(currencyFormat.format(candidate)),
                             selected:

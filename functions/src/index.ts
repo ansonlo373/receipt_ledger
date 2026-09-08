@@ -6,4 +6,4 @@
 // billing can take project resources with it, and an automated process that
 // can delete your data is a worse risk than the small bill it guards against.
 // The $1 budget remains as an email alert instead.
-export {};
+export {rescanReceipt} from "./rescanReceipt";
