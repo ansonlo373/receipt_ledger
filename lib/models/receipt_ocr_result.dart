@@ -1,10 +1,24 @@
 enum OcrSource {
-  onDeviceMlKit;
+  onDeviceMlKit,
+  geminiOnline;
 
   String get label {
     switch (this) {
       case OcrSource.onDeviceMlKit:
         return 'Read on-device';
+      case OcrSource.geminiOnline:
+        return 'Read by Gemini (online)';
+    }
+  }
+
+  /// Part of the enum rather than the badge widget, so adding a source can't
+  /// leave the UI labelling it with the wrong icon.
+  String get emoji {
+    switch (this) {
+      case OcrSource.onDeviceMlKit:
+        return '📱';
+      case OcrSource.geminiOnline:
+        return '🌐';
     }
   }
 }
