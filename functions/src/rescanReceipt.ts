@@ -6,12 +6,16 @@ import * as logger from "firebase-functions/logger";
  * Which model reads the receipts.
  *
  * Overridable without a code change, because model names move quickly and
- * this is the one setting most likely to need swapping. A full "flash" model
- * rather than "flash-lite": this path exists precisely because on-device OCR
- * misread messy receipts, so reading quality is the point, and the difference
- * in cost is a fraction of a cent per scan.
+ * this is the one setting most likely to need swapping — as it did here.
+ *
+ * A "flash-lite" model on purpose: the full flash models are now reasoning
+ * ("thinking") models whose latency on a receipt image blows this function's
+ * timeout (gemini-3.5-flash hung well past 90s in testing), and the previous
+ * gemini-2.5-flash has been retired (404). gemini-3.5-flash-lite doesn't
+ * think, returns in ~20-25s, and reads the merchant/total/date correctly —
+ * which is all this path needs.
  */
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite";
 
 /**
  * Asking for JSON in the prompt alone invites markdown fences and prose
@@ -68,7 +72,7 @@ interface RescanRequest {
  * users can spend it.
  */
 export const rescanReceipt = onCall<RescanRequest>(
-  {region: "us-central1", memory: "512MiB", timeoutSeconds: 60},
+  {region: "us-central1", memory: "512MiB", timeoutSeconds: 120},
   async (request) => {
     if (!request.auth) {
       throw new HttpsError(
